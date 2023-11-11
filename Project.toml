@@ -1,0 +1,7 @@
+name = "iwing"
+uuid = "daf16af8-7f16-4f26-8def-e870a95fae86"
+authors = ["Lune4090 <lune.sqnm@gmail.com>"]
+version = "0.1.0"
+
+[deps]
+GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
