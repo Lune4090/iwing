@@ -56,9 +56,9 @@ end
 @kwdef mutable struct CollisionMesh
     Vertices::Matrix{Float64}
     Faces::Matrix{Int}
-	polygons = Nothing
-	face_num::Int64 = 0
-	is_Decomposed = false
+    polygons = Nothing
+    face_num::Int64 = 0
+    is_Decomposed = false
 end
 
 @kwdef mutable struct InGameObj
@@ -81,14 +81,30 @@ end
     # ActiveMaterialProperty
     # RadiationSpectrum
     # Raise error when PDvec != 1
-    InGameObj(Pos, PostureDirectionVector, RotationQuaternion, CollisionMesh, AppearanceMesh, Attributes) = PostureDirectionVector[1]^2 + PostureDirectionVector[2]^2 + PostureDirectionVector[3]^2 != 1 ? error("PostureDirectionVector should be equal to 1!!!") : new(Pos, PostureDirectionVector, RotationQuaternion, CollisionMesh, AppearanceMesh, Attributes)
+    InGameObj(
+        Pos,
+        PostureDirectionVector,
+        RotationQuaternion,
+        CollisionMesh,
+        AppearanceMesh,
+        Attributes) =
+        PostureDirectionVector[1]^2 +
+        PostureDirectionVector[2]^2 +
+        PostureDirectionVector[3]^2 != 1 ?
+        error("PostureDirectionVector should be equal to 1!!!") :
+        new(Pos,
+            PostureDirectionVector,
+            RotationQuaternion,
+            CollisionMesh,
+            AppearanceMesh,
+            Attributes)
 end
 
 # IGO間の関係性がメインのコンテナ
 @kwdef mutable struct StructuredInGameObj
     InGameObjArr::Vector{InGameObj}
     InGameObjsRelation
-	StructuredInGameObj(InGameObjArr,InGameObjsRelation) = InGameObjArr
+    StructuredInGameObj(InGameObjArr, InGameObjsRelation) = InGameObjArr
 end
 
 function CalcNormalVector(polygon::Matrix{Float64})
@@ -103,8 +119,8 @@ end
 # つまり、コリジョンメッシュを作るときは同方向から見て時計回りに頂点番号を振らないと
 # 法線が内向きになってしまう
 function CalcNormalVector2D(polygon2D::Matrix{Float64})
-	normalilzed_edge = (polygon2D[2, :] - polygon2D[1, :])/norm(polygon2D[2, :] - polygon2D[1, :])
-	NormalVector = cross([0.0,0.0,1.0], normalilzed_edge)
+    normalilzed_edge = (polygon2D[2, :] - polygon2D[1, :]) / norm(polygon2D[2, :] - polygon2D[1, :])
+    NormalVector = cross([0.0, 0.0, 1.0], normalilzed_edge)
     return NormalVector / norm(NormalVector)
 end
 
@@ -135,9 +151,9 @@ function DecomposeMesh!(mesh::CollisionMesh)
             polygons[EachVertex, :, EachFace] .= mesh.Vertices[mesh.Faces[EachFace, EachVertex], :]
         end
     end
-	mesh.polygons = polygons
-	mesh.face_num = num_faces
-	mesh.is_Decomposed = true
+    mesh.polygons = polygons
+    mesh.face_num = num_faces
+    mesh.is_Decomposed = true
 end
 
 # 現時点ではxy平面上の走査グリッド(つまり線)生成しか実装していない
@@ -201,196 +217,123 @@ end
 
 
 function GameLoop(WorldDictionary::Dict,
-	center::Vector{Float64}, center_PDVec::Vector{Float64},
-	RayCastedObject::StructuredInGameObj;
+    center::Vector{Float64}, center_PDVec::Vector{Float64},
+    RayCastedObject::StructuredInGameObj;
     θRlim::Float64=π / 4,
     θLlim::Float64=π / 4,
     θres=1000,
     CalcReflection=false)
-	println("----------------------------------------------")
-	println("GameLoop Started")
-	println("----------------------------------------------")
+    println("----------------------------------------------")
+    println("GameLoop Started")
 
-	for key in keys(WorldDictionary)
-		IGO = WorldDictionary[key]
+    for key in keys(WorldDictionary)
+        IGO = WorldDictionary[key]
         println("----------------------------------------------")
         println("Start processing IGO")
-        println("----------------------------------------------")
         # Local2Global Coordinate Translation
-		# ParallelTranslation
+        # ParallelTranslation
         polygons = IGO.CollisionMesh.polygons .+ IGO.Pos
-		# Roatation
-	end
-	ViDARsLoop(
-	WorldDictionary::Dict,
-	center::Vector{Float64}, center_PDVec::Vector{Float64},
-	RayCastedObject::StructuredInGameObj;
-    θRlim::Float64=π / 4,
-    θLlim::Float64=π / 4,
-    θres=1000,
-    CalcReflection=false)
+        # Roatation
+    end
+    ViDARsLoop(
+        WorldDictionary::Dict,
+        center::Vector{Float64}, center_PDVec::Vector{Float64},
+        RayCastedObject::StructuredInGameObj;
+        θRlim::Float64=π / 4,
+        θLlim::Float64=π / 4,
+        θres=1000,
+        CalcReflection=false)
 end
 
 function ViDARsLoop(
-	WorldDictionary::Dict,
-	center::Vector{Float64}, center_PDVec::Vector{Float64},
-	RayCastedObject::StructuredInGameObj;
+    WorldDictionary::Dict,
+    center::Vector{Float64}, center_PDVec::Vector{Float64},
+    RayCastedObject::StructuredInGameObj;
     θRlim::Float64=π / 4,
     θLlim::Float64=π / 4,
     θres=1000,
     CalcReflection=false)
 
     println("----------------------------------------------")
-    # θres個のDictを持ったVectorとしてScanningGridを生成
-	ScanningGrid = Vector{Dict}(undef, θres)
+    println("Start ViDARsLoop")
+    # 描画情報を格納するScanningGridをθres個のDictを持ったVectorとして生成
+    ScanningGrid = Vector{Dict}(undef, θres)
+    # 走査角の決定
     dθ = (θRlim + θLlim) / θres
-    # 一旦愚直にforで実装
-    for key in keys(WorldDictionary)
-		IGO = WorldDictionary[key]
-        println("----------------------------------------------")
-        println("Start processing IGO")
-        println("----------------------------------------------")
-		#= --- ここから2Dの走査処理に特化した内容に変わる ---=#
-		# RayCasting
-		center_PDVec[3] = 0 # Z座標を強制的にゼロにする
-        center_PDVec = center_PDVec / norm(center_PDVec) # Normを1に戻す
-		# Angle is based on global coordinate
-		# グローバルのx軸を基準(θ = 0)とし、反時計回りを正とする
-		θstart = acos(center_PDVec[1])
-		# y座標が負なら負になる
-		if center_PDVec[2] < 0
-			θstart = -θstart
-		elseif center_PDVec[2] == 0 && center_PDVec[1] < 0
-			θstart = π
-		
-		# 反時計回りに走査を行う
-		for step_θ in 1:θres
-			scanning_pointX = center+cos(step_θ*dθ+θstart-θRlim)
-			scanning_pointY = center+sin(step_θ*dθ+θstart-θRlim)
-			RayVec = [scanning_pointX-center[1], scanning_pointY-center[2]]
-			# y = α_1 *X + β_1
-			α_1 = (scanning_pointY-center[2])/(scanning_pointX-center[1])
-			β_1 = scanning_pointY - α_1*scanning_pointX
-			# ここからポリゴン毎の処理
-        	for face_num in 1:num_faces
-				println("----------------------------------------------")
-				println("Start Processing polygon: $face_num")
-				println("----------------------------------------------")
-				ReturnDict = Dict()
-				# y = α_2 *X + β_2
-				α_2 = (polygons[2,2,face_num]-polygons[2,1,face_num])
-				/(polygons[1,2,face_num]-polygons[1,1,face_num])
-				β_2 = polygons[2,1,face_num]- polygons[1,1,face_num]
-				# 解はX = (β_2 - β_1)/(α_1 - α_2)
-				# 分母0によるDiv0で発生するNaN回避が必要
-				if α_1 != α_2
-					CrossingPointX = (β_2 - β_1)/(α_1 - α_2)
-					CrossingPointY = CrossingPointX *α_1 + β_1
-					# 交点の線内判定
-					VecVert2Vert = polygons[:,2,num_faces] - polygons[:,1,num_faces]
-					VecVert2CrossPoint = [CrossingPointX, CrossingPointY] - polygons[:,1,num_faces]
-					DotProduct = (VecVert2CrossPoint, VecVert2Vert)
-					# 内積が0<=DotProduct<=1の時のみ交点が線内となりその他の処理を行う
-					if 0<=DotProduct<=1
-						ReturnDict["Dist"] = norm((CrossingPointX-scanning_pointX), (CrossingPointY-scanning_pointY))
-						# 
-						if ScanningGrid[step_θ]["Dist"] > ReturnDict["Dist"]
-							ReturnDict["NormalVec"] = CalcNormalVector2D(polygons[:, :, face_num])
-							ReturnDict["FaceNum"] = face_num
-							ReturnDict["IGONum"] = idx
-							ScanningGrid[step_θ] = ReturnDict
-						end
-					end
-				end
-			end
-		end
+    # 2D走査の準備
+    center_PDVec[3] = 0 # Z座標を強制的にゼロにする
+    center_PDVec = center_PDVec / norm(center_PDVec) # Normを1に戻す
+    # グローバルのx軸を基準(θ = 0)とし、反時計回りを正とする
+    θstart = acos(center_PDVec[1])
+    # y座標が負なら負になる
+    if center_PDVec[2] < 0
+        θstart = -θstart
+        # θ=πとθ=0はここで区別する
+    elseif center_PDVec[2] == 0 && center_PDVec[1] < 0
+        θstart = π
     end
-end
-
-function ViDARsLoop_tmp(center::Vector{Float64}, center_PDVec::Vector{Float64}, RayCastedObject::StructuredInGameObj;
-    DetectionLengthUpperLim::Float64=300.0,
-    θRlim::Float64=π / 4,
-    θLlim::Float64=π / 4,
-    θres=1000,
-    CalcReflection=false)
-
     println("----------------------------------------------")
-    # θres個のVector型の要素を持ったVectorとしてScanningGridを受け取る
-	ScanningGrid = MakeScanningGrid_static(θres, θRlim, θLlim)
-    dθ = (θRlim + θLlim) / θres
-    # 一旦愚直にforで実装
-    for idx in 1:size(RayCastedObject.InGameObjArr)
-		IGO = RayCastedObject.InGameObjArr[idx]
+    println("Start Scanning")
+    # 反時計回りに走査を行う
+    for step_θ in 1:θres
+        # 走査点のグローバル座標を導出
+        scanning_pointX = center + cos(step_θ * dθ + θstart - θRlim)
+        scanning_pointY = center + sin(step_θ * dθ + θstart - θRlim)
+        # 走査線方程式の係数を導出
+        # y = α_1 *X + β_1
+        α_1 = (scanning_pointY - center[2]) / (scanning_pointX - center[1])
+        β_1 = scanning_pointY - α_1 * scanning_pointX
         println("----------------------------------------------")
-        println("Start processing IGO")
-        println("----------------------------------------------")
-        polygons, num_faces = DecomposeMesh!(IGO.CollisionMesh)
-        # Local2Global Coordinate Translation
-        polygons = polygons .+ IGO.Pos
-		#= --- ここから2Dの走査処理に特化した内容に変わる ---=#
-		# RayCasting
-		center_PDVec[3] = 0 # Z座標を強制的にゼロにする
-        center_PDVec = center_PDVec / norm(center_PDVec) # Normを1に戻す
-		acos(center_PDVec)
-		asin(center_PDVec)
-		# Angle is based on global coordinate
-		# グローバルのx軸を基準(θ = 0)とし、反時計回りを正とする
-		θstart = acos(center_PDVec[1])
-		# y座標が負なら負になる
-		if center_PDVec[2] < 0
-			θstart = -θstart
-		elseif center_PDVec[2] == 0 && center_PDVec[1] < 0
-			θstart = π
-		
-		# 反時計回りに走査を行う
-		for step_θ in 1:θres
-			scanning_pointX = center+cos(step_θ*dθ+θstart-θRlim)
-			scanning_pointY = center+sin(step_θ*dθ+θstart-θRlim)
-			RayVec = [scanning_pointX-center[1], scanning_pointY-center[2]]
-			# y = α_1 *X + β_1
-			α_1 = (scanning_pointY-center[2])/(scanning_pointX-center[1])
-			β_1 = scanning_pointY - α_1*scanning_pointX
-			# ここからポリゴン毎の処理
-        	for face_num in 1:num_faces
-				println("----------------------------------------------")
-				println("Start Processing polygon: $face_num")
-				println("----------------------------------------------")
-				ReturnDict = Dict()
-				# y = α_2 *X + β_2
-				α_2 = (polygons[2,2,face_num]-polygons[2,1,face_num])
-				/(polygons[1,2,face_num]-polygons[1,1,face_num])
-				β_2 = polygons[2,1,face_num]- polygons[1,1,face_num]
-				# 解はX = (β_2 - β_1)/(α_1 - α_2)
-				# 分母0によるDiv0で発生するNaN回避が必要
-				if α_1 != α_2
-					CrossingPointX = (β_2 - β_1)/(α_1 - α_2)
-					CrossingPointY = CrossingPointX *α_1 + β_1
-					# 交点の線内判定
-					VecVert2Vert = polygons[:,2,num_faces] - polygons[:,1,num_faces]
-					VecVert2CrossPoint = [CrossingPointX, CrossingPointY] - polygons[:,1,num_faces]
-					DotProduct = (VecVert2CrossPoint, VecVert2Vert)
-					# 内積が0<=DotProduct<=1の時のみ交点が線内となりその他の処理を行う
-					if 0<=DotProduct<=1
-						ReturnDict["Dist"] = norm((CrossingPointX-scanning_pointX), (CrossingPointY-scanning_pointY))
-						# 
-						if ScanningGrid[step_θ]["Dist"] > ReturnDict["Dist"]
-							ReturnDict["NormalVec"] = CalcNormalVector2D(polygons[:, :, face_num])
-							ReturnDict["FaceNum"] = face_num
-							ReturnDict["IGONum"] = idx
-							ScanningGrid[step_θ] = ReturnDict
-						end
-					end
-				end
-			end
-		end
+        println("Start Scanning Step : $step_θ/$θres")
+        for key in keys(WorldDictionary)
+            IGO = WorldDictionary[key]
+            # 以下、ViDARsLoop内ではPolygonを直接変形する処理はしないとして
+            # 各polygonのcopyを取ってそれらを走査している
+            # RayがPolygonに何らかの影響を与える処理を書きたい場合は
+            # 別のLoopを書くこと
+            polygons = IGO.CollisionMesh.polygons
+            println("----------------------------------------------")
+            println("Start processing object : $key")
+            # ここからポリゴン毎の処理
+            for face_num in 1:num_faces
+                println("----------------------------------------------")
+                println("Start Processing polygon No.$face_num")
+                ReturnDict = Dict()
+                polygon = polygons[:, :, face_num]
+                # y = α_2 *X + β_2
+                α_2 = (polygon[2, 2] - polygon[2, 1]) / (polygon[1, 2] - polygon[1, 1])
+                β_2 = polygon[2, 1] - polygon[1, 1]
+                # 解はX = (β_2 - β_1)/(α_1 - α_2)
+                # 分母0によるDiv0で発生するNaN回避が必要
+                if α_1 != α_2
+                    CrossingPointX = (β_2 - β_1) / (α_1 - α_2)
+                    CrossingPointY = CrossingPointX * α_1 + β_1
+                    # 交点の線内判定
+                    VecVert2Vert = polygon[:, 2] - polygon[:, 1]
+                    VecVert2CrossPoint = [CrossingPointX, CrossingPointY] - polygon[:, 1]
+                    DotProduct = (VecVert2CrossPoint, VecVert2Vert)
+                    # 内積が0<=DotProduct<=1の時のみ交点が線内となりその他の処理を行う
+                    if 0 <= DotProduct <= 1
+                        ReturnDict["Dist"] = norm((CrossingPointX - scanning_pointX), (CrossingPointY - scanning_pointY))
+                        # 
+                        if ScanningGrid[step_θ]["Dist"] > ReturnDict["Dist"]
+                            ReturnDict["NormalVec"] = CalcNormalVector2D(polygon)
+                            ReturnDict["FaceNum"] = face_num
+                            ReturnDict["ObjectKey"] = key
+                            ScanningGrid[step_θ] = ReturnDict
+                        end
+                    end
+                end
+            end
+        end
     end
 end
+
 
 #= --- Comment Zone ---=#
 #=
-2Dに直す!!!!!
+まだフレーム毎の各メッシュのIGO追従を書いていない！
 =#
-
 
 #= --- TestCodes --- =#
 
@@ -459,7 +402,7 @@ zlims!(ax3d, -3, 3)
 center = [0.0, 0.0, 0.0]
 center_PDVec = [1.0, 0.0, 0.0]
 
-ViDARsLoop(center, center_PDVec, igos)
+#ViDARsLoop(center, center_PDVec, igos)
 
 #igos.InGameObjArr[1].Attributes
 

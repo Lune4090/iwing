@@ -6,15 +6,16 @@
 
 | 時間 | 作成予定 | 作成完了 | 現時点 |備考|
 |----|----|----|----|----|
-|1011|開発環境整備|なし|||
-|11W1|コリジョンメッシュ<br>キーボード入力反映|コリジョンメッシュ (11/11(Sat))|イマココ||
-|11W2|レーダーシステム||||
-|11W3|ビジュアルスクリプティング||||
-|1112|兵装スイッチング||||
-|12W1|フィールド||||
-|12W2|ステージ||||
-|12W3|ガレージ||||
-|12W4|||||
+|10/11|開発環境整備|なし|||
+|11W1|ViDARs|ViDARs (11/11(Sat))|イマココ||
+|11W2|LoadingMesh/BasicMovement(WASD)||||
+|11W3|ObjectDetection/WINGS-Programming||||
+|11/12|Garage : ObjectLoad/UnloadSystem||||
+|12W1|Field : BasicSystem/UI||||
+|12W2|Stage : BasicSystem/UI||||
+|12W3|Enemy : Example||||
+|12W4|ScriptSystem||||
+|12/01|コンテンツ拡充||||
 
 ## 開発環境
 
