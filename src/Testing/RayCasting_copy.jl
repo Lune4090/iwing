@@ -39,6 +39,7 @@ mutable struct MyRotationQuaternion <: MyAbstractRotationQuaternion
     y::Float64
     z::Float64
     θ::Float64
+    MyRotationQuaternion(x, y, z, θ) = x^2 + y^2 + z^2 != 1 ? error("MyRotationQuaternion's Norm != 1!") : new(x, y, z, θ)
 end
 # Vector, θ -> Quarternion, this is special constructor for Rotation Quarternion
 # https://qiita.com/drken/items/0639cf34cce14e8d58a5
@@ -77,7 +78,6 @@ end
 
 abstract type MyAbstractMesh end
 abstract type MyAbstractCollisionMesh <: MyAbstractMesh end
-abstract type MyAbstractAppearanceMesh <: MyAbstractMesh end
 
 @kwdef mutable struct CollisionMesh <: MyAbstractCollisionMesh
     Vertices::Matrix{Float64}
@@ -87,33 +87,35 @@ abstract type MyAbstractAppearanceMesh <: MyAbstractMesh end
     polygons = Nothing
     face_num::Int64 = 0
     is_Decomposed = false
-    function CollisionMesh(
-        Vertices::Matrix{Float64},
-        Faces::Matrix{Int},
-        PostureDirectionVector::Vector{Float64},
-        dim::Int,
-        polygons=Nothing,
-        face_num::Int=0,
-        is_Decomposed=false)
-        if size(Vertices, 2) != 3
-            error("Vertice should be 3Dim!")
-        elseif size(Faces, 2) != dim
-            error("The number of vertices should be matched to defiend mesh dim($(dim))!")
-        else
-            new(
-                Vertices,
-                Faces,
-                PostureDirectionVector,
-                dim,
-                polygons,
-                face_num,
-                is_Decomposed)
-        end
-    end
+    CollisionMesh(
+        Vertices, Faces, PostureDirectionVector, dim, polygons, face_num, is_Decomposed) =
+        size(Vertices, 2) == 3 ? error("Vertice should be 3Dim!") :
+        new(Vertices, Faces, PostureDirectionVector, dim, polygons, face_num, is_Decomposed)
+    CollisionMesh(
+        Vertices, Faces, PostureDirectionVector, dim, polygons, face_num, is_Decomposed) =
+        size(Faces, 2) == dim ? error("Face should be composed of $(dim) Vertices!") :
+        new(Vertices, Faces, PostureDirectionVector, dim, polygons, face_num, is_Decomposed)
+end
+
+@kwdef mutable struct CollisionMesh2D
+    Vertices::Matrix{Float64}
+    Faces::Matrix{Int}
+    PostureDirectionVector::Vector{Float64}
+    polygons = Nothing
+    face_num::Int64 = 0
+    is_Decomposed = false
+    CollisionMesh(
+        Vertices, Faces, PostureDirectionVector, polygons, face_num, is_Decomposed) =
+        size(Vertices, 2) == 3 ? error("Vertice should be 3Dim!") :
+        new(Vertices, Faces, PostureDirectionVector, polygons, face_num, is_Decomposed)
+    CollisionMesh(
+        Vertices, Faces, PostureDirectionVector, polygons, face_num, is_Decomposed) =
+        size(Faces, 2) == 2 ? error("Face should be 2Dim!") :
+        new(Vertices, Faces, PostureDirectionVector, polygons, face_num, is_Decomposed)
 end
 
 # VerticesからFacesに面毎に格納された頂点番号を引数にpolygonを生成
-function DecomposeMesh!(mesh::MyAbstractMesh)
+function DecomposeMesh!(mesh::CollisionMesh)
     num_faces = size(mesh.Faces, 1)
     dim = size(mesh.Faces, 2)
     polygons = Array{Float64}(undef, dim, 3, num_faces)
@@ -134,7 +136,7 @@ end
     AppearanceMesh::Any
     # AppearanceMeshは外部ツールで製作した.stl形式のオブジェクトのloadを想定
     # AppearanceMeshは触らない(Makie.meshscatter!()にmarkerとして渡すだけ)
-    Attributes::Vector{Dict{Any,Any}}
+    Attributes::Array{Dict,1}
     # AttributesはIGOのCollisionMeshの各面毎に算出される
     # Attributes，Mesh側が持つべきという説もある
     # KinecticProperty
@@ -146,14 +148,23 @@ end
     # ActiveMaterialProperty
     # RadiationSpectrum
     # Raise error when PDvec != 1
-    function InGameObj(Pos::Vector{Float64}, PostureDirectionVector::Vector{Float64}, CollisionMesh::Any, AppearanceMesh::Any, Attributes::Vector{Dict{Any,Any}})
-        norm_PDVec = PostureDirectionVector[1]^2 + PostureDirectionVector[2]^2 + PostureDirectionVector[3]^2
-        if norm_PDVec != 1
-            error("PostureDirectionVector should be equal to 1 !!!")
-        else
-            new(Pos, PostureDirectionVector, CollisionMesh, AppearanceMesh, Attributes)
-        end
-    end
+    InGameObj(
+        Pos,
+        PostureDirectionVector,
+        RotationQuaternion,
+        CollisionMesh,
+        AppearanceMesh,
+        Attributes) =
+        PostureDirectionVector[1]^2 +
+        PostureDirectionVector[2]^2 +
+        PostureDirectionVector[3]^2 != 1 ?
+        error("PostureDirectionVector should be equal to 1!!!") :
+        new(Pos,
+            PostureDirectionVector,
+            RotationQuaternion,
+            CollisionMesh,
+            AppearanceMesh,
+            Attributes)
 end
 
 function CalcNormalVector(polygon::Matrix{Float64})
@@ -191,11 +202,7 @@ function TranslatePolygonLocal2Global!(mesh, IGO::InGameObj)
     DecomposeMesh!(mesh)
     # Local2Global Coordinate Translation
     # ParallelTranslation
-    for face in 1:mesh.face_num
-        for vert in 1:mesh.dim
-            mesh.polygons[vert, :, face] .= mesh.polygons[vert, :, face] .+ IGO.Pos
-        end
-    end
+    mesh.polygons = mesh.polygons .+ IGO.Pos
     # Roation (by Quarternion[λx*cos(θ/2),λy*cos(θ/2),λz*cos(θ/2),sin(θ/2)])
     RotateAxis = cross(mesh.PostureDirectionVector, IGO.PostureDirectionVector)
     # 通常は回転軸を中心に回転
@@ -203,22 +210,18 @@ function TranslatePolygonLocal2Global!(mesh, IGO::InGameObj)
         RotateAxis = RotateAxis / norm(RotateAxis)
         # CounterClockwiseを仮定
         RotateAngle = acos(mesh.PostureDirectionVector ⋅ IGO.PostureDirectionVector)
-        for face in 1:mesh.face_num
-            for vert in 1:mesh.dim
-                println("Axis vec : $RotateAxis")
-                println("Angle : $RotateAngle")
-                mesh.polygons[vert, :, face] .= Quaternion2Vector(
-                    RotateVectorbyQuaternion(
-                        MyRotationQuaternion(RotateAxis, RotateAngle),
-                        mesh.polygons[vert, :, face])
-                )
+        for face in size(mesh.polygons, 3)
+            for vert in 1:3
+                mesh.polygons[vert, :, face] = RotateVectorbyQuaternion(
+                    mesh.polygons[vert, :, face],
+                    MyRotationQuaternion(RotateAxis, RotateAngle))
             end
         end
         # 真反対を向いていて回転軸が定まらない時は各座標を反転
     elseif acos(mesh.PostureDirectionVector ⋅ IGO.PostureDirectionVector) == -1
-        for face in 1:mesh.face_num
-            for vert in 1:mesh.dim
-                mesh.polygons[vert, :, face] .= -mesh.polygons[vert, :, face]
+        for face in size(mesh.polygons, 3)
+            for vert in 1:size(mesh.polygons, 1)
+                mesh.polygons[vert, :, face] = -mesh.polygons[vert, :, face]
             end
         end
         # そうでもない場合は一致しているので何もしないで
@@ -230,8 +233,8 @@ end
 function ViDARsLoop2D(
     AllObjDict::Dict,
     center::Vector{Float64}, center_PDVec::Vector{Float64};
-    θRlim=π / 4,
-    θLlim=π / 4,
+    θRlim::Float64=π / 4,
+    θLlim::Float64=π / 4,
     θres=1000,
     CalcReflection=false)
 
@@ -258,8 +261,8 @@ function ViDARsLoop2D(
     # 反時計回りに走査を行う
     for step_θ in 1:θres
         # 走査点のグローバル座標を導出
-        scanning_pointX = center[1] + cos(step_θ * dθ + θstart - θRlim)
-        scanning_pointY = center[2] + sin(step_θ * dθ + θstart - θRlim)
+        scanning_pointX = center + cos(step_θ * dθ + θstart - θRlim)
+        scanning_pointY = center + sin(step_θ * dθ + θstart - θRlim)
         # 走査線方程式の係数を導出
         # y = α_1 *X + β_1
         α_1 = (scanning_pointY - center[2]) / (scanning_pointX - center[1])
@@ -276,7 +279,7 @@ function ViDARsLoop2D(
             println("----------------------------------------------")
             println("Start processing object : $key")
             # ここからポリゴン毎の処理
-            for face_num in 1:IGO.CollisionMesh.face_num
+            for face_num in 1:num_faces
                 println("----------------------------------------------")
                 println("Start Processing polygon No.$face_num")
                 ReturnDict = Dict()
@@ -291,8 +294,8 @@ function ViDARsLoop2D(
                     CrossingPointY = CrossingPointX * α_1 + β_1
                     # 交点の線内判定
                     VecVert2Vert = polygon[2, :] - polygon[1, :]
-                    VecVert2CrossPoint = [CrossingPointX, CrossingPointY, 0.0] - polygon[1, :]
-                    DotProduct = dot(VecVert2CrossPoint, VecVert2Vert)
+                    VecVert2CrossPoint = [CrossingPointX, CrossingPointY] - polygon[:, 1]
+                    DotProduct = (VecVert2CrossPoint, VecVert2Vert)
                     # 内積が0<=DotProduct<=1の時のみ交点が線内となりその他の処理を行う
                     if 0 <= DotProduct <= 1
                         ReturnDict["Dist"] = norm((CrossingPointX - scanning_pointX), (CrossingPointY - scanning_pointY))
@@ -323,13 +326,18 @@ function EachFrame(AllObjDict::Dict,
         println("Start processing object : $key")
         TranslatePolygonLocal2Global!(IGO.CollisionMesh, IGO)
         println("Finish translating CollisionMesh (object : $key)")
-        #TranslatePolygonLocal2Global!(IGO.AppearanceMesh, IGO)
+        TranslatePolygonLocal2Global!(IGO.AppearanceMesh, IGO)
         println("Finish translating AppearanceMesh (object : $key)")
 
     end
 
     # 上記関数でローカル座標情報から生成されたグローバル座標上のポリゴンを処理
-    ViDARsLoop2D(AllObjDict::Dict, center::Vector{Float64}, center_PDVec::Vector{Float64}; θRlim=π / 4, θLlim=π / 4, θres=1000)
+    ViDARsLoop2D(
+        AllObjDict::Dict,
+        center::Vector{Float64}, center_PDVec::Vector{Float64},
+        θRlim::Float64=π / 4,
+        θLlim::Float64=π / 4,
+        θres=1000)
 
 end
 
@@ -349,9 +357,14 @@ function InitialSetting()
 end
 
 #= --- Comment Zone ---=#
+#=
+まだフレーム毎の各メッシュのIGO追従を書いていない！
+=#
 
 #= --- TestCodes --- =#
 
+# 全てのオブジェクトは作られたのちに単一のDictionaryに追記されることで
+# 初めて名前と存在を認められる
 AllObjDict = Dict()
 tmpvertices = [
     0.0 0.0 0.0;
@@ -362,6 +375,10 @@ tmpvertices = [
     0.5 2.5 1.0;
     2.0 4.0 -2.0
 ]
+tmpvertices2D = [
+    0.0 0.0 0.0;
+    1.0 0.0 0.0
+]
 tmpfaces = [
     1 2 3;
     3 4 1;
@@ -370,53 +387,40 @@ tmpfaces = [
     3 2 5;
     5 4 2
 ]
+tmpfaces2D = [
+    1 2
+]
 
-function Main_()
-    InitialSetting()
+tmpMeshPDVec = [0.0 1.0 0.0]
 
-    # 全てのオブジェクトは作られたのちにこのDictに追記されることで初めて名前と存在をゲームから認められる
-    AllObjDict = Dict()
-    tmpvertices2D = [
-        0.0 0.0 0.0;
-        1.0 0.0 0.0
-    ]
+Mymesh = CollisionMesh2D(tmpvertices2D, tmpfaces2D, tmpMeshPDVec)
 
-    tmpfaces2D = [
-        1 2
-    ]
-    tmpMeshPDVec = [0.0, 1.0, 0.0]
-    Mymesh = CollisionMesh(tmpvertices2D, tmpfaces2D, tmpMeshPDVec, 2)
-    tmpIGOpos = [3.0, 3.0, 0.0]
-    tmpIGOPDVec = [1.0, 0.0, 0.0]
-    tmpattrdict1 = Dict()
-    tmpAttrArr = [tmpattrdict1]
-    Mygameobj = InGameObj(
-        tmpIGOpos,
-        tmpIGOPDVec,
-        Mymesh,
-        Nothing,
-        tmpAttrArr)
+# Meshを分解してポリゴンにしておく
+DecomposeMesh!(Mymesh)
 
-    # 辞書に登録
-    AllObjDict["1"] = Mygameobj
+tmpIGOpos = [0.0, 0.0, 0.0]
 
-    # PlayerCharacter position (最終的にはObjとして引き渡す)
-    player_pos = [0.0, 0.0, 0.0]
-    player_PDVec = [1.0, 1.0, 1.0]
-    GameLoop(AllObjDict, player_pos, player_PDVec)
-end
+Mygameobj = InGameObj(
+    tmpIGOpos,
+    [1.0, 0.0, 0.0],
+    Mymesh,
+    Nothing,
+    [Dict()])
 
-Main_()
-
-#=--- Graph Maker ---=#
-#=
 fig = Figure()
 ax3d = Axis3(fig[1, 1], aspect=(1, 1, 1))
 cam = ax3d.scene.camera
 
+AllObjDict["1"] = Mygameobj
+
 xlims!(ax3d, -5, 5)
 ylims!(ax3d, -5, 5)
 zlims!(ax3d, -5, 5)
+
+center = [0.0, 0.0, 0.0]
+center_PDVec = [1.0, 0.0, 0.0]
+
+ViDARsLoop2D(AllObjDict, center, center_PDVec)
 
 xs = [igos.InGameObjArr[1].Attributes[1]["NormVec"][1], 0.0]
 ys = [igos.InGameObjArr[1].Attributes[1]["NormVec"][2], 0.0]
@@ -429,7 +433,7 @@ display(fig)
 #Mygameobj.PostureDirectionVector = [1.0, 0.0, 0.0]
 # いやこれ勝手にノルム1のベクトルを外から書き換えられるのまずいな
 
-
+#=
 事前に配列サイズを指定するのとしないのとの差
 for i in 1:100
     @time a = MakeScanningGrid(i * 100, π / 2, π / 2)
