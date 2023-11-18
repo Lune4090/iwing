@@ -1,6 +1,8 @@
 using GLMakie
 using LinearAlgebra
 
+GLMakie.activate!(framerate=120, render_on_demand=false)
+
 #= --- Original Structures Definition --- =#
 abstract type MyAbstractQuaternion end
 abstract type MyAbstractNormalizedQuaternion <: MyAbstractQuaternion end
@@ -42,9 +44,10 @@ mutable struct MyRotationQuaternion <: MyAbstractRotationQuaternion
 end
 # Vector, θ -> Quarternion, this is special constructor for Rotation Quarternion
 # https://qiita.com/drken/items/0639cf34cce14e8d58a5
-MyRotationQuaternion(vec::Vector, θ) = MyRotationQuaternion(vec[1] * cos(θ / 2), vec[2] * cos(θ / 2), vec[3] * cos(θ / 2), sin(θ / 2))
+MyRotationQuaternion(vec::Vector, θ) = MyRotationQuaternion(vec[1] * sin(θ / 2), vec[2] * sin(θ / 2), vec[3] * sin(θ / 2), cos(θ / 2))
 
 #= --- Original Structures' functions --- =#
+
 function RotateQuaternion(Rotator::MyAbstractQuaternion, Rotated::MyAbstractQuaternion)
     return MyQuaternion(
         Rotator.θ * Rotated.x - Rotator.z * Rotated.y + Rotator.y * Rotated.z + Rotator.x * Rotated.θ,
@@ -54,13 +57,16 @@ function RotateQuaternion(Rotator::MyAbstractQuaternion, Rotated::MyAbstractQuat
     )
 end
 
+# https://qiita.com/kenjihiranabe/items/945232fbde58fab45681
 function RotateVectorbyQuaternion(q::MyAbstractQuaternion, vec::Vector)
-    return MyQuaternion(
-        q.θ * vec[1] - q.z * vec[2] + q.y * vec[3] + q.x * 0,
-        q.z * vec[1] + q.θ * vec[2] - q.x * vec[3] + q.y * 0,
-        -q.y * vec[1] + q.x * vec[2] + q.θ * vec[3] + q.z * 0,
-        -q.x * vec[1] - q.y * vec[2] - q.z * vec[3] + q.θ * 0
+    tmp = MyQuaternion(
+        q.θ * vec[1] - q.z * vec[2] + q.y * vec[3] + q.x * 1,
+        q.z * vec[1] + q.θ * vec[2] - q.x * vec[3] + q.y * 1,
+        -q.y * vec[1] + q.x * vec[2] + q.θ * vec[3] + q.z * 1,
+        -q.x * vec[1] - q.y * vec[2] - q.z * vec[3] + q.θ * 1
     )
+    return RotateQuaternion(tmp, MyQuaternion(-q.x, -q.y, -q.z, q.θ))
+
 end
 
 function Quaternion2Vector(q::MyQuaternion)
@@ -72,7 +78,7 @@ function Quaternion2Vector(q::MyQuaternion)
 end
 
 function Vector2Quarternion(v::Vector{Real})
-    return MyQuaternion(v[1], v[2], v[3], 0)
+    return MyQuaternion(v[1], v[2], v[3], 1)
 end
 
 abstract type MyAbstractMesh end
@@ -165,49 +171,22 @@ function CalcNormalVector(polygon::Matrix{Float64})
     return NormalVector / norm(NormalVector)
 end
 
-# NormalVectorの向きはZ軸正側からXY平面を見てv2-v1をCounterClockwiseに回した方向とする
-# つまり、コリジョンメッシュを作るときは同方向から見て時計回りに頂点番号を振らないと
-# 法線が内向きになってしまう
-function CalcNormalVector2D(polygon2D::Matrix{Float64})
-    normalilzed_edge = (polygon2D[:, 2] - polygon2D[:, 1]) / norm(polygon2D[:, 2] - polygon2D[:, 1])
-    NormalVector = cross([0.0, 0.0, 1.0], normalilzed_edge)
-    return NormalVector / norm(NormalVector)
-end
-
-function CalcDistAndNormalizedvec(eyepos::Vector, polygon::Matrix{Float64})
-    v1 = polygon[:, 1] - eyepos
-    v2 = polygon[:, 2] - eyepos
-    v3 = polygon[:, 3] - eyepos
-    norm_v1 = norm(v1)
-    norm_v2 = norm(v2)
-    norm_v3 = norm(v3)
-    NormalizedV1 = v1 / norm_v1
-    NormalizedV2 = v2 / norm_v2
-    NormalizedV3 = v3 / norm_v3
-    return [norm_v1, norm_v2, norm_v3, NormalizedV1, NormalizedV2, NormalizedV3]
-end
-
 # 基本的に2D、3Dを問わずポリゴンは3次元座標系で保持される為流用可能
 function TranslatePolygonLocal2Global!(mesh, IGO::InGameObj)
     DecomposeMesh!(mesh)
+
     # Local2Global Coordinate Translation
-    # ParallelTranslation
-    for face in 1:mesh.face_num
-        for vert in 1:mesh.dim
-            mesh.polygons[:, vert, face] .= mesh.polygons[:, vert, face] .+ IGO.Pos
-        end
-    end
-    # Roation (by Quarternion[λx*cos(θ/2),λy*cos(θ/2),λz*cos(θ/2),sin(θ/2)])
+    # Rotation (by Quarternion[λx*sin(θ/2),λy*sin(θ/2),λz*sin(θ/2),cos(θ/2)])
     RotateAxis = cross(mesh.PostureDirectionVector, IGO.PostureDirectionVector)
     # 通常は回転軸を中心に回転
-    if RotateAxis != 0
+    if RotateAxis != [0.0, 0.0, 0.0]
         RotateAxis = RotateAxis / norm(RotateAxis)
         # CounterClockwiseを仮定
         RotateAngle = acos(mesh.PostureDirectionVector ⋅ IGO.PostureDirectionVector)
         for face in 1:mesh.face_num
             for vert in 1:mesh.dim
-                println("Axis vec : $RotateAxis")
-                println("Angle : $RotateAngle")
+                #println("Axis vec : $RotateAxis")
+                #println("Angle : $RotateAngle")
                 mesh.polygons[:, vert, face] .= Quaternion2Vector(
                     RotateVectorbyQuaternion(
                         MyRotationQuaternion(RotateAxis, RotateAngle),
@@ -216,7 +195,7 @@ function TranslatePolygonLocal2Global!(mesh, IGO::InGameObj)
             end
         end
         # 真反対を向いていて回転軸が定まらない時は各座標を反転
-    elseif acos(mesh.PostureDirectionVector ⋅ IGO.PostureDirectionVector) == -1
+    elseif mesh.PostureDirectionVector != IGO.PostureDirectionVector
         for face in 1:mesh.face_num
             for vert in 1:mesh.dim
                 mesh.polygons[:, vert, face] .= -mesh.polygons[:, vert, face]
@@ -224,6 +203,29 @@ function TranslatePolygonLocal2Global!(mesh, IGO::InGameObj)
         end
         # そうでもない場合は一致しているので何もしないで
     end
+
+    # ParallelTranslation
+    for face in 1:mesh.face_num
+        for vert in 1:mesh.dim
+            mesh.polygons[:, vert, face] .= mesh.polygons[:, vert, face] .+ IGO.Pos
+        end
+    end
+
+end
+
+function DecideArg2D(Vec::Vector{Float64}; isAgainstX=true)
+    Vec = Vec / norm(Vec) # Normを1に戻す
+    # グローバルのx軸を基準(θ = 0)とし、反時計回りを正とする
+    # -π<θ<πで走査範囲を定義
+    θ = acos(Vec[1])
+    # y座標が負なら負になる
+    if Vec[2] < 0
+        θ = -θ
+        # θ=πとθ=0はここで区別する
+    elseif Vec[2] == 0 && Vec[1] < 0
+        θ = π
+    end
+    return θ
 end
 
 #= --- GameLoop & Inner caller functions--- =#
@@ -236,72 +238,68 @@ function ViDARsLoop2D(
     θres=1000,
     CalcReflection=false)
 
-    println("----------------------------------------------")
-    println("Start ViDARsLoop")
+    #println("----------------------------------------------")
+    #println("Start ViDARsLoop")
     # 描画情報を格納するScanningGridをθres個のDictを持ったVectorとして生成
     ScanningGrid = Vector{Dict{String,Any}}(undef, θres)
-    # 走査角の決定
+    # 走査偏角の決定
     dθ = (θRlim + θLlim) / θres
     # 2D走査の準備
     center_PDVec[3] = 0 # Z座標を強制的にゼロにする
-    center_PDVec = center_PDVec / norm(center_PDVec) # Normを1に戻す
-    # グローバルのx軸を基準(θ = 0)とし、反時計回りを正とする
-    # -π<θ<πで走査範囲を定義
-    θstart = acos(center_PDVec[1])
-    # y座標が負なら負になる
-    if center_PDVec[2] < 0
-        θstart = -θstart
-        # θ=πとθ=0はここで区別する
-    elseif center_PDVec[2] == 0 && center_PDVec[1] < 0
-        θstart = π
-    end
-    println("----------------------------------------------")
-    println("Start Scanning")
+    # X軸正方向を基準に基準角を決定
+    θstart = DecideArg2D(center_PDVec)
+    #println("----------------------------------------------")
+    #println("Start Scanning")
     # 反時計回りに走査を行う
     for step_θ in 1:θres
         ScanningGrid[step_θ] = Dict("Dist" => Inf)
-        # 走査点のグローバル座標を導出
-        scanning_pointX = center[1] + cos(step_θ * dθ + θstart - θRlim)
-        scanning_pointY = center[2] + sin(step_θ * dθ + θstart - θRlim)
-        # 走査線方程式の係数を導出
-        # y = α_1 *X + β_1
-        α_1 = (scanning_pointY - center[2]) / (scanning_pointX - center[1])
-        β_1 = scanning_pointY - α_1 * scanning_pointX
-        println("----------------------------------------------")
-        println("Start Scanning Step : $step_θ/$θres")
+        # 計算はベクトルを利用
+        # https://risalc.info/src/line-plane-intersection-point.html
+        # 走査線の方向ベクトルScanDirを導出，走査線方程式はcenter + t*ScanDir (0<t)
+        ScanDir = [cos(step_θ * dθ + θstart - θRlim), sin(step_θ * dθ + θstart - θRlim), 0]
+        #println("----------------------------------------------")
+        #println("Start Scanning Step : $step_θ/$θres")
         for key in keys(AllObjDict)
             IGO = AllObjDict[key]
-            # ViDARsLoop内ではPolygonを直接変形する処理はしないとしてcopyを取っている
-            polygons = IGO.CollisionMesh.polygons
-            println("----------------------------------------------")
-            println("Start processing object : $key")
+            #println("----------------------------------------------")
+            #println("Start processing object : $key")
             # ここからポリゴン毎の処理
             for face_num in 1:IGO.CollisionMesh.face_num
-                println("----------------------------------------------")
-                println("Start Processing polygon No.$face_num")
+                #println("----------------------------------------------")
+                #println("Start Processing polygon No.$face_num")
                 ReturnDict = Dict{String,Any}()
-                polygon = polygons[:, :, face_num]
-                # y = α_2 *X + β_2
-                α_2 = (polygon[2, 2] - polygon[2, 1]) / (polygon[1, 2] - polygon[1, 1])
-                β_2 = polygon[2, 1] - α_2 * polygon[1, 1]
-                # 解はX = (β_2 - β_1)/(α_1 - α_2)
-                # 分母0によるDiv0で発生するNaN回避が必要
-                if α_1 != α_2
-                    CrossingPointX = (β_2 - β_1) / (α_1 - α_2)
-                    CrossingPointY = CrossingPointX * α_1 + β_1
+                polygon = IGO.CollisionMesh.polygons[:, :, face_num]
+                # ポリゴンの頂点1から2へのベクトルをV_v1_v2，視点からポリゴン頂点1へのベクトルをV_c_v1とする
+                V_v1_v2 = polygon[:, 2] - polygon[:, 1]
+                V_c_v1 = polygon[:, 1] - center
+                # 内積とノルムから角度ϕと距離hを導出，平面方程式n ⋅ x = hを導く
+                θpoly = DecideArg2D(V_v1_v2)
+                ϕ = DecideArg2D(-V_c_v1) - θpoly
+                h = norm(V_c_v1) * sin(ϕ)
+                n = [cos(θpoly - π / 2), sin(θpoly - π / 2), 0.0]
+                # 交点座標は以下の通り
+                tmp_dp = n ⋅ ScanDir
+                is_parallel = tmp_dp == 0 ? true : false
+                is_inner = false
+                is_sameside = false
+                if !is_parallel
+                    t = (h - n ⋅ center) / tmp_dp
+                    # ここ，何故か走査線が逆向きを向いているからしょうがなく反転させてる
+                    is_sameside = t >= 0 ? true : false
+                    Xpt = center + ScanDir * t
                     # 交点の線内判定
-                    VecVert2Vert = polygon[:, 2] - polygon[:, 1]
-                    VecVert2CrossPoint = [CrossingPointX, CrossingPointY, 0.0] - polygon[:, 1]
-                    DotProduct = dot(VecVert2CrossPoint, VecVert2Vert)
-                    # 内積が0<=DotProduct<=1の時のみ交点が線内となりその他の処理を行う
-                    if 0 <= DotProduct <= 1
-                        ReturnDict["Dist"] = norm([(CrossingPointX - scanning_pointX), (CrossingPointY - scanning_pointY)])
-                        if ScanningGrid[step_θ]["Dist"] > ReturnDict["Dist"]
-                            ReturnDict["NormalVec"] = CalcNormalVector2D(polygon)
-                            ReturnDict["FaceNum"] = face_num
-                            ReturnDict["ObjectKey"] = key
-                            ScanningGrid[step_θ] = ReturnDict
-                        end
+                    # 両頂点からのベクトルとの内積の符号が異なる時のみ交点が線内となりその他の処理を行う
+                    V_v1_Xpt = (Xpt - polygon[:, 1])
+                    V_v2_Xpt = (Xpt - polygon[:, 2])
+                    is_inner = dot(V_v1_Xpt, V_v2_Xpt) < 0 ? true : false
+                end
+                if is_inner && is_sameside
+                    ReturnDict["Dist"] = norm(Xpt - center)
+                    if ScanningGrid[step_θ]["Dist"] > ReturnDict["Dist"]
+                        ReturnDict["NormalVec"] = n
+                        ReturnDict["FaceNum"] = face_num
+                        ReturnDict["ObjectKey"] = key
+                        ScanningGrid[step_θ] = ReturnDict
                     end
                 end
             end
@@ -310,71 +308,101 @@ function ViDARsLoop2D(
     return ScanningGrid
 end
 
+function DrawObjects()
+
+end
+
 # Call function which should be done in a frame
-function EachFrame(fig, AllObjDict::Dict,
+function EachFrame(fig, AllObjDict::Dict, FlagBoolDict::Dict, FlagIntDict::Dict, FlagFloatDict::Dict, AxisDict::Dict,
     center::Vector{Float64}, center_PDVec::Vector{Float64})
-    println("----------------------------------------------")
-    println("EachFrameExecution Started")
+    #println("----------------------------------------------")
+    #println("EachFrameExecution Started")
 
     # Polygon projection
     for key in keys(AllObjDict)
         IGO = AllObjDict[key]
-        println("----------------------------------------------")
-        println("Start processing object : $key")
+        #println("----------------------------------------------")
+        #println("Start processing object : $key")
         TranslatePolygonLocal2Global!(IGO.CollisionMesh, IGO)
-        println("Finish translating CollisionMesh (object : $key)")
+        #println("Finish translating CollisionMesh (object : $key)")
         #TranslatePolygonLocal2Global!(IGO.AppearanceMesh, IGO)
-        println("Finish translating AppearanceMesh (object : $key)")
+        #println("Finish translating AppearanceMesh (object : $key)")
 
     end
 
     Llim = π / 4
     Rlim = π / 4
-    scanres = 1000
+    scanres = 200
 
     # 上記関数でローカル座標情報から生成されたグローバル座標上のポリゴンを処理
-    ScanningGrid = ViDARsLoop2D(
+    @time ScanningGrid = ViDARsLoop2D(
         AllObjDict::Dict, center::Vector{Float64},
         center_PDVec::Vector{Float64};
         θRlim=Rlim, θLlim=Llim, θres=scanres)
 
     # Visualize
 
-    # Draw Maindisplay
-    maindisplay = Axis3(fig[1, 1], aspect=(1, 1, 1))
-    maincam = maindisplay.scene.camera
-    xlims!(maindisplay, -5, 5)
-    ylims!(maindisplay, -5, 5)
-    zlims!(maindisplay, -5, 5)
+    IsAnyNewAxCreated = false
 
-    facenum = AllObjDict[1].CollisionMesh.face_num
-
-    for i in 1:facenum
-        lines!(
-            maindisplay,
-            AllObjDict[1].CollisionMesh.polygons[1, :, i],
-            AllObjDict[1].CollisionMesh.polygons[2, :, i],
-            AllObjDict[1].CollisionMesh.polygons[3, :, i],
-            color=:lightblue
-        )
+    # Draw Stage
+    if !FlagBoolDict["IsStageVisualised"] # Generate new Ax as Stage only if StageAx is not created
+        AxisDict["StageAxDict"] = Dict("StageAx" => Axis(fig[1, 1]), "nonplayerplots" => [], "playerplots" => [])
+        #maincam = maindisplay.scene.camera
+        xlims!(AxisDict["StageAxDict"]["StageAx"], -5, 5)
+        ylims!(AxisDict["StageAxDict"]["StageAx"], -5, 5)
+        #zlims!(AxisDict["StageAxDict"]["StageAx"], -1, 1)
+        FlagBoolDict["IsStageVisualised"] = true
+        IsAnyNewAxCreated = true
+    else # Delete plots to initialize axis
+        for plots in AxisDict["StageAxDict"]["nonplayerplots"]
+            delete!(AxisDict["StageAxDict"]["StageAx"], plots)
+        end
+        for plots in AxisDict["StageAxDict"]["playerplots"]
+            delete!(AxisDict["StageAxDict"]["StageAx"], plots)
+        end
+        AxisDict["StageAxDict"]["nonplayerplots"] = []
+        AxisDict["StageAxDict"]["playerplots"] = []
     end
 
-    # point players
-    scatter!(
-        maindisplay,
+    # Draw Obj in StageAx
+    # Draw polygons
+    facenum = AllObjDict[1].CollisionMesh.face_num
+    for i in 1:facenum
+        push!(AxisDict["StageAxDict"]["nonplayerplots"], lines!(
+            AxisDict["StageAxDict"]["StageAx"],
+            [AllObjDict[1].CollisionMesh.polygons[1, 1, i], AllObjDict[1].CollisionMesh.polygons[1, 2, i]],
+            [AllObjDict[1].CollisionMesh.polygons[2, 1, i], AllObjDict[1].CollisionMesh.polygons[2, 2, i]],
+            [AllObjDict[1].CollisionMesh.polygons[3, 1, i], AllObjDict[1].CollisionMesh.polygons[3, 2, i]]
+        ))
+    end
+
+    # Draw player
+    push!(AxisDict["StageAxDict"]["playerplots"], scatter!(
+        AxisDict["StageAxDict"]["StageAx"],
         center[1],
         center[2],
-        center[3],
-        color=:orange)
-    lines!(
-        maindisplay,
+        center[3]
+    ))
+    push!(AxisDict["StageAxDict"]["playerplots"], lines!(
+        AxisDict["StageAxDict"]["StageAx"],
         [center[1], center[1] + center_PDVec[1]],
         [center[2], center[2] + center_PDVec[2]],
-        [center[3], center[3] + center_PDVec[3]],
-        color=:lightgreen
-    )
-    # Draw PolarAxis
-    polax = PolarAxis(fig[1, 2])
+        [center[3], center[3] + center_PDVec[3]]
+    ))
+
+    # Draw ViDARs result
+    if !FlagBoolDict["IsViDARsVisualised"] # Generate new Ax as ViDARs only if ViDARsAx is not created
+        AxisDict["ViDARsAxDict"] = Dict("ViDARsAx" => PolarAxis(fig[1, 2]), "ViDARsResult" => [])
+        FlagBoolDict["IsViDARsVisualised"] = true
+        IsAnyNewAxCreated = true
+    else # Delete plots to initialize axis
+        for plots in AxisDict["ViDARsAxDict"]["ViDARsResult"]
+            delete!(AxisDict["ViDARsAxDict"]["ViDARsAx"], plots)
+            AxisDict["ViDARsAxDict"]["ViDARsResult"] = []
+        end
+    end
+
+    # Draw ViDARs result
     rarr = Vector{Float64}(undef, scanres)
     θarr = Vector{Float64}(undef, scanres)
     for i in 1:scanres
@@ -385,24 +413,35 @@ function EachFrame(fig, AllObjDict::Dict,
         end
         θarr[i] = i * (Llim + Rlim) / scanres - Rlim
     end
-    scatobject = scatter!(polax, θarr, rarr)
-    display(fig)
+
+    push!(
+        AxisDict["ViDARsAxDict"]["ViDARsResult"],
+        scatter!(AxisDict["ViDARsAxDict"]["ViDARsAx"], θarr, rarr)
+    )
 end
 
 # Main Game loop
-function GameLoop(fig, AllObjDict::Dict,
+function GameLoop(fig, AllObjDict::Dict, FlagBoolDict::Dict, FlagIntDict::Dict, FlagFloatDict::Dict, AxisDict::Dict,
     center::Vector{Float64}, center_PDVec::Vector{Float64})
-    println("----------------------------------------------")
-    println("GameLoop Started")
-    EachFrame(fig, AllObjDict, center, center_PDVec)
+    #println("----------------------------------------------")
+    #println("GameLoop Started")
+    EachFrame(fig, AllObjDict, FlagBoolDict, FlagIntDict, FlagFloatDict, AxisDict, center, center_PDVec)
 end
 
 # InitialSetting to start game
 function InitialSetting()
     fig = Figure()
     display(fig)
+    AllObjDict = Dict{Int,InGameObj}()
+    FlagBoolDict = Dict{String,Bool}()
+    FlagIntDict = Dict{String,Int}()
+    FlagFloatDict = Dict{String,Float64}()
+    AxisDict = Dict{String,Any}()
+    FlagBoolDict["IsFieldVisualised"] = false
+    FlagBoolDict["IsStageVisualised"] = false
+    FlagBoolDict["IsViDARsVisualised"] = false
     println("InitialSetting is finished without any problem")
-    return fig
+    return fig, AllObjDict, FlagBoolDict, FlagIntDict, FlagFloatDict, AxisDict
 end
 
 #= --- Comment Zone ---=#
@@ -411,10 +450,9 @@ end
 
 AllObjDict = Dict()
 
-function Main_()
-    fig = InitialSetting()
+function GameMain()
+    fig, AllObjDict, FlagBoolDict, FlagIntDict, FlagFloatDict, AxisDict = InitialSetting()
     # 全てのオブジェクトは作られたのちにこのDictに追記されることで初めて名前と存在をゲームから認められる
-    AllObjDict = Dict{Int,InGameObj}()
     tmpvertices2D = [
         0.0 0.0 0.0;
         1.0 0.0 0.0;
@@ -426,17 +464,21 @@ function Main_()
     tmpfaces2D = [
         1 2;
         1 3;
-        2 4;
-        5 1;
-        3 2;
-        4 1;
-        5 4;
-        4 3
+        4 5
     ]
     tmpvertices2D = permutedims(tmpvertices2D)
     tmpfaces2D = permutedims(tmpfaces2D)
 
-    tmpMeshPDVec = [0.0, 1.0, 0.0]
+    tmpvertices2D = rand(3, 20) * 10
+    tmpfaces2D = 10 .* (1 .+ rand(2, 30))
+    tmpfaces2D = map(tmpfaces2D) do x
+        floor(x)
+    end
+    tmpfaces2D = map(tmpfaces2D) do x
+        convert(Int, x)
+    end
+
+    tmpMeshPDVec = [-1.0, 0.0, 0.0]
     Mymesh = CollisionMesh(tmpvertices2D, tmpfaces2D, tmpMeshPDVec, 2)
     tmpIGOpos = [2.0, 2.0, 0.0]
     tmpIGOPDVec = [1.0, 0.0, 0.0]
@@ -454,12 +496,29 @@ function Main_()
 
     # PlayerCharacter position (最終的にはObjとして引き渡す)
     player_pos = [0.0, 0.0, 0.0]
-    player_PDVec = [1.0, 0.0, 1.0]
-    GameLoop(fig, AllObjDict, player_pos, player_PDVec)
+    player_PDVec = [1.0, 0.0, 0.0]
+
+    # plotting object initialization
+    #GameLoop(fig, AllObjDict, FlagBoolDict, FlagIntDict, FlagFloatDict, AxisDict, player_pos, player_PDVec)
+
+    while to_value(events(fig).window_open)
+        player_PDVec = Quaternion2Vector(RotateVectorbyQuaternion(MyRotationQuaternion([0, 0, 1], π / 120), player_PDVec))
+        println("------------")
+        @time GameLoop(fig, AllObjDict, FlagBoolDict, FlagIntDict, FlagFloatDict, AxisDict, player_pos, player_PDVec)
+        println("------------")
+    end
 end
 
-Main_()
+GameMain()
 
+#= ------ Test of 3D Translation ------ =#
+#=
+player_PDVec = [1.0, 0.0, 0.0]
+MyRotationQuaternion([0, 0, 1], π / 6)
+RotateVectorbyQuaternion(MyRotationQuaternion([0, 0, 1], π / 3), player_PDVec)
+
+Quaternion2Vector(RotateVectorbyQuaternion(MyRotationQuaternion([0, 0, 1], π / 4), player_PDVec))
+=#
 
 #= ------ Speed Test ------=#
 #=
@@ -481,8 +540,8 @@ tmpvertices2D = [
         5 4;
         4 3
     ]
-tmpvertices2D = rand(3, 2000)
-tmpfaces2D = 1000 .* (1 .+ rand(2, 100000))
+tmpvertices2D = rand(3, 20)
+tmpfaces2D = 10 .* (1 .+ rand(2, 10))
 tmpfaces2D = map(tmpfaces2D) do x
     floor(x)
 end
