@@ -24,20 +24,18 @@ function DrawObjects(fig, AllObjDict::Dict, FlagBoolDict::Dict, FlagIntDict::Dic
         AxisDict["StageAxDict"]["playerplots"] = []
     end
 
-    #=
-        # Draw Obj in StageAx
-        # Draw polygons
-        facenum = AllObjDict[1].CollisionMesh.face_num
-        for i in 1:facenum
-            push!(AxisDict["StageAxDict"]["nonplayerplots"], lines!(
-                AxisDict["StageAxDict"]["StageAx"],
-                [AllObjDict[1].CollisionMesh.polygons[1, 1, i], AllObjDict[1].CollisionMesh.polygons[1, 2, i]],
-                [AllObjDict[1].CollisionMesh.polygons[2, 1, i], AllObjDict[1].CollisionMesh.polygons[2, 2, i]],
-                [AllObjDict[1].CollisionMesh.polygons[3, 1, i], AllObjDict[1].CollisionMesh.polygons[3, 2, i]],
-                color=:lightblue
-            ))
-        end
-    	=#
+    # Draw Obj in StageAx
+    # Draw polygons
+    facenum = AllObjDict[1].CollisionMesh.face_num
+    for i in 1:facenum
+        push!(AxisDict["StageAxDict"]["nonplayerplots"], lines!(
+            AxisDict["StageAxDict"]["StageAx"],
+            [AllObjDict[1].CollisionMesh.polygons[1, 1, i], AllObjDict[1].CollisionMesh.polygons[1, 2, i]],
+            [AllObjDict[1].CollisionMesh.polygons[2, 1, i], AllObjDict[1].CollisionMesh.polygons[2, 2, i]],
+            [AllObjDict[1].CollisionMesh.polygons[3, 1, i], AllObjDict[1].CollisionMesh.polygons[3, 2, i]],
+            color=:lightblue
+        ))
+    end
 
     # Draw player
     push!(AxisDict["StageAxDict"]["playerplots"], scatter!(
