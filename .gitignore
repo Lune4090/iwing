@@ -1,0 +1,6 @@
+# githubの容量制限を回避するために.gitignoreで不要なファイルやデータを指定
+# https://qiita.com/inabe49/items/16ee3d9d1ce68daa9fff
+# 全てのdllファイルを無視
+.dll
+# any フォルダ内のデータは要らない場合
+#bin/

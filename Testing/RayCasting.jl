@@ -174,7 +174,6 @@ end
 # 基本的に2D、3Dを問わずポリゴンは3次元座標系で保持される為流用可能
 function TranslatePolygonLocal2Global!(mesh, IGO::InGameObj)
     DecomposeMesh!(mesh)
-
     # Local2Global Coordinate Translation
     # Rotation (by Quarternion[λx*sin(θ/2),λy*sin(θ/2),λz*sin(θ/2),cos(θ/2)])
     RotateAxis = cross(mesh.PostureDirectionVector, IGO.PostureDirectionVector)
@@ -214,16 +213,13 @@ function TranslatePolygonLocal2Global!(mesh, IGO::InGameObj)
 end
 
 function DecideArg2D(Vec::Vector{Float64}; isAgainstX=true)
-    Vec = Vec / norm(Vec) # Normを1に戻す
+    tmpVec = Vec / norm(Vec) # Normを1に戻す
     # グローバルのx軸を基準(θ = 0)とし、反時計回りを正とする
-    # -π<θ<πで走査範囲を定義
-    θ = acos(Vec[1])
+    # -π<θ<=πで走査範囲を定義
+    θ = acos(tmpVec[1])
     # y座標が負なら負になる
-    if Vec[2] < 0
+    if tmpVec[2] < 0
         θ = -θ
-        # θ=πとθ=0はここで区別する
-    elseif Vec[2] == 0 && Vec[1] < 0
-        θ = π
     end
     return θ
 end
@@ -284,14 +280,13 @@ function ViDARsLoop2D(
                 is_sameside = false
                 if !is_parallel
                     t = (h - n ⋅ center) / tmp_dp
-                    # ここ，何故か走査線が逆向きを向いているからしょうがなく反転させてる
                     is_sameside = t >= 0 ? true : false
                     Xpt = center + ScanDir * t
                     # 交点の線内判定
                     # 両頂点からのベクトルとの内積の符号が異なる時のみ交点が線内となりその他の処理を行う
                     V_v1_Xpt = (Xpt - polygon[:, 1])
                     V_v2_Xpt = (Xpt - polygon[:, 2])
-                    is_inner = dot(V_v1_Xpt, V_v2_Xpt) < 0 ? true : false
+                    is_inner = dot(V_v1_Xpt, V_v2_Xpt) <= 0 ? true : false
                 end
                 if is_inner && is_sameside
                     ReturnDict["Dist"] = norm(Xpt - center)
@@ -308,48 +303,18 @@ function ViDARsLoop2D(
     return ScanningGrid
 end
 
-function DrawObjects()
-
-end
-
-# Call function which should be done in a frame
-function EachFrame(fig, AllObjDict::Dict, FlagBoolDict::Dict, FlagIntDict::Dict, FlagFloatDict::Dict, AxisDict::Dict,
-    center::Vector{Float64}, center_PDVec::Vector{Float64})
-    #println("----------------------------------------------")
-    #println("EachFrameExecution Started")
-
-    # Polygon projection
-    for key in keys(AllObjDict)
-        IGO = AllObjDict[key]
-        #println("----------------------------------------------")
-        #println("Start processing object : $key")
-        TranslatePolygonLocal2Global!(IGO.CollisionMesh, IGO)
-        #println("Finish translating CollisionMesh (object : $key)")
-        #TranslatePolygonLocal2Global!(IGO.AppearanceMesh, IGO)
-        #println("Finish translating AppearanceMesh (object : $key)")
-
-    end
-
-    Llim = π / 4
-    Rlim = π / 4
-    scanres = 200
-
-    # 上記関数でローカル座標情報から生成されたグローバル座標上のポリゴンを処理
-    @time ScanningGrid = ViDARsLoop2D(
-        AllObjDict::Dict, center::Vector{Float64},
-        center_PDVec::Vector{Float64};
-        θRlim=Rlim, θLlim=Llim, θres=scanres)
-
+function DrawObjects(fig, AllObjDict::Dict, FlagBoolDict::Dict, FlagIntDict::Dict, FlagFloatDict::Dict, AxisDict::Dict,
+    center::Vector{Float64}, center_PDVec::Vector{Float64}, Llim::Float64, Rlim::Float64, scanres::Int, ScanningGrid::Vector{Dict{String,Any}})
     # Visualize
 
     IsAnyNewAxCreated = false
 
     # Draw Stage
     if !FlagBoolDict["IsStageVisualised"] # Generate new Ax as Stage only if StageAx is not created
-        AxisDict["StageAxDict"] = Dict("StageAx" => Axis(fig[1, 1]), "nonplayerplots" => [], "playerplots" => [])
+        AxisDict["StageAxDict"] = Dict("StageAx" => Axis(fig[1, 1], aspect=1), "nonplayerplots" => [], "playerplots" => [])
         #maincam = maindisplay.scene.camera
-        xlims!(AxisDict["StageAxDict"]["StageAx"], -5, 5)
-        ylims!(AxisDict["StageAxDict"]["StageAx"], -5, 5)
+        xlims!(AxisDict["StageAxDict"]["StageAx"], -10, 10)
+        ylims!(AxisDict["StageAxDict"]["StageAx"], -10, 10)
         #zlims!(AxisDict["StageAxDict"]["StageAx"], -1, 1)
         FlagBoolDict["IsStageVisualised"] = true
         IsAnyNewAxCreated = true
@@ -372,7 +337,8 @@ function EachFrame(fig, AllObjDict::Dict, FlagBoolDict::Dict, FlagIntDict::Dict,
             AxisDict["StageAxDict"]["StageAx"],
             [AllObjDict[1].CollisionMesh.polygons[1, 1, i], AllObjDict[1].CollisionMesh.polygons[1, 2, i]],
             [AllObjDict[1].CollisionMesh.polygons[2, 1, i], AllObjDict[1].CollisionMesh.polygons[2, 2, i]],
-            [AllObjDict[1].CollisionMesh.polygons[3, 1, i], AllObjDict[1].CollisionMesh.polygons[3, 2, i]]
+            [AllObjDict[1].CollisionMesh.polygons[3, 1, i], AllObjDict[1].CollisionMesh.polygons[3, 2, i]],
+            color=:lightblue
         ))
     end
 
@@ -381,18 +347,30 @@ function EachFrame(fig, AllObjDict::Dict, FlagBoolDict::Dict, FlagIntDict::Dict,
         AxisDict["StageAxDict"]["StageAx"],
         center[1],
         center[2],
-        center[3]
+        center[3],
+        color=:orange
+    ))
+    leftlimitsline = Quaternion2Vector(RotateVectorbyQuaternion(MyRotationQuaternion([0, 0, 1], Llim), center_PDVec))
+    rightlimitsline = Quaternion2Vector(RotateVectorbyQuaternion(MyRotationQuaternion([0, 0, 1], -Rlim), center_PDVec))
+
+    push!(AxisDict["StageAxDict"]["playerplots"], lines!(
+        AxisDict["StageAxDict"]["StageAx"],
+        [center[1], center[1] + leftlimitsline[1]],
+        [center[2], center[2] + leftlimitsline[2]],
+        [center[3], center[3] + leftlimitsline[3]],
+        color=:lightgreen
     ))
     push!(AxisDict["StageAxDict"]["playerplots"], lines!(
         AxisDict["StageAxDict"]["StageAx"],
-        [center[1], center[1] + center_PDVec[1]],
-        [center[2], center[2] + center_PDVec[2]],
-        [center[3], center[3] + center_PDVec[3]]
+        [center[1], center[1] + rightlimitsline[1]],
+        [center[2], center[2] + rightlimitsline[2]],
+        [center[3], center[3] + rightlimitsline[3]],
+        color=:lightgreen
     ))
 
     # Draw ViDARs result
     if !FlagBoolDict["IsViDARsVisualised"] # Generate new Ax as ViDARs only if ViDARsAx is not created
-        AxisDict["ViDARsAxDict"] = Dict("ViDARsAx" => PolarAxis(fig[1, 2]), "ViDARsResult" => [])
+        AxisDict["ViDARsAxDict"] = Dict("ViDARsAx" => PolarAxis(fig[1, 2], rlimits=(0, 10), thetalimits=(-Llim, Rlim)), "ViDARsResult" => [])
         FlagBoolDict["IsViDARsVisualised"] = true
         IsAnyNewAxCreated = true
     else # Delete plots to initialize axis
@@ -416,8 +394,44 @@ function EachFrame(fig, AllObjDict::Dict, FlagBoolDict::Dict, FlagIntDict::Dict,
 
     push!(
         AxisDict["ViDARsAxDict"]["ViDARsResult"],
-        scatter!(AxisDict["ViDARsAxDict"]["ViDARsAx"], θarr, rarr)
+        scatter!(AxisDict["ViDARsAxDict"]["ViDARsAx"], θarr, rarr,
+            color=:lightblue, markersize=5)
     )
+
+end
+
+# Call function which should be done in a frame
+function EachFrame(fig, AllObjDict::Dict, FlagBoolDict::Dict, FlagIntDict::Dict, FlagFloatDict::Dict, AxisDict::Dict,
+    center::Vector{Float64}, center_PDVec::Vector{Float64})
+    #println("----------------------------------------------")
+    #println("EachFrameExecution Started")
+
+    # Polygon projection
+    for key in keys(AllObjDict)
+        IGO = AllObjDict[key]
+        #println("----------------------------------------------")
+        #println("Start processing object : $key")
+        TranslatePolygonLocal2Global!(IGO.CollisionMesh, IGO)
+        #println("Finish translating CollisionMesh (object : $key)")
+        #TranslatePolygonLocal2Global!(IGO.AppearanceMesh, IGO)
+        #println("Finish translating AppearanceMesh (object : $key)")
+
+    end
+
+    Llim = π / 4
+    Rlim = π / 4
+    scanres = 1000
+
+    # 上記関数でローカル座標情報から生成されたグローバル座標上のポリゴンを処理
+    @time ScanningGrid = ViDARsLoop2D(
+        AllObjDict::Dict, center::Vector{Float64},
+        center_PDVec::Vector{Float64};
+        θRlim=Rlim, θLlim=Llim, θres=scanres)
+
+    # Draw display
+    @time DrawObjects(fig, AllObjDict, FlagBoolDict, FlagIntDict, FlagFloatDict, AxisDict,
+        center, center_PDVec, Llim, Rlim, scanres, ScanningGrid)
+
 end
 
 # Main Game loop
@@ -448,39 +462,46 @@ end
 
 #= --- TestCodes --- =#
 
-AllObjDict = Dict()
-
 function GameMain()
     fig, AllObjDict, FlagBoolDict, FlagIntDict, FlagFloatDict, AxisDict = InitialSetting()
     # 全てのオブジェクトは作られたのちにこのDictに追記されることで初めて名前と存在をゲームから認められる
     tmpvertices2D = [
         0.0 0.0 0.0;
-        1.0 0.0 0.0;
-        0.0 1.0 0.0;
-        1.0 1.0 0.0;
-        -1.0 0.0 0.0
+        1.0 1.0 0.0
     ]
 
     tmpfaces2D = [
-        1 2;
-        1 3;
-        4 5
+        1 2
     ]
+
     tmpvertices2D = permutedims(tmpvertices2D)
     tmpfaces2D = permutedims(tmpfaces2D)
 
-    tmpvertices2D = rand(3, 20) * 10
-    tmpfaces2D = 10 .* (1 .+ rand(2, 30))
+    vertnum = 20
+    scale = 10
+    polynum = 30
+
+    tmpvertices2D = rand(3, vertnum) * scale
+    # convert to pseudo 2D
+    for i in 1:vertnum
+        tmpvertices2D[3, i] = 0.0
+    end
+    # generate face(∼polygon) randomly
+    tmpfaces2D = rand(2, polynum) * scale
+    # convert to 1-start idx
     tmpfaces2D = map(tmpfaces2D) do x
-        floor(x)
+        floor(x) .+ 1.0
     end
     tmpfaces2D = map(tmpfaces2D) do x
         convert(Int, x)
     end
 
+    #=
+        tmpvertices2D = rand(3, 10) * 10
+    	=#
     tmpMeshPDVec = [-1.0, 0.0, 0.0]
     Mymesh = CollisionMesh(tmpvertices2D, tmpfaces2D, tmpMeshPDVec, 2)
-    tmpIGOpos = [2.0, 2.0, 0.0]
+    tmpIGOpos = [1.0, 1.0, 0.0]
     tmpIGOPDVec = [1.0, 0.0, 0.0]
     tmpattrdict1 = Dict()
     tmpAttrArr = [tmpattrdict1]
@@ -501,10 +522,11 @@ function GameMain()
     # plotting object initialization
     #GameLoop(fig, AllObjDict, FlagBoolDict, FlagIntDict, FlagFloatDict, AxisDict, player_pos, player_PDVec)
 
+
     while to_value(events(fig).window_open)
         player_PDVec = Quaternion2Vector(RotateVectorbyQuaternion(MyRotationQuaternion([0, 0, 1], π / 120), player_PDVec))
         println("------------")
-        @time GameLoop(fig, AllObjDict, FlagBoolDict, FlagIntDict, FlagFloatDict, AxisDict, player_pos, player_PDVec)
+        GameLoop(fig, AllObjDict, FlagBoolDict, FlagIntDict, FlagFloatDict, AxisDict, player_pos, player_PDVec)
         println("------------")
     end
 end
