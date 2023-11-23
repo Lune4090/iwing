@@ -57,7 +57,7 @@ faceface = TriangleFace([1, 2, 2]) # TriangleFace<:AbstractNgonFace<:AbstractFac
 faceface2 = TriangleFace([2, 1, 2])
 
 # これで作れる
-meshmesh = Mesh([p31, p32, p33], [faceface, faceface2])
+meshmesh = Mesh([p31, p32], [faceface])
 # これで通る
 @show result = RotX(π / 2) * coordinates(meshmesh)
 
@@ -97,8 +97,6 @@ ax3 = Axis3(fig[1, 1])
 meshscatter!(ax3, p31, marker=m1)
 
 meta(m1)
-
-
 #= 
 全体として小文字関数の内exportされているものが少ない
 恐らく使用されることを想定していない？
@@ -108,4 +106,44 @@ meta(m1)
 Polygonはあほみたいに内部が複雑でよーわからん
 =#
 
-p1 = Point3f(0.0, 0.0, 0.0)
+p1 = Point3f(1.0, 0.0, 0.0)
+p2 = Point3f(2.0, 2.0, 0.0)
+tmpvertices2D = [p1, p2]
+tmpfaces2D = [TriangleFace([1, 2, 2])]
+meshmesh = Mesh(tmpvertices2D, tmpfaces2D)
+meshmesh[1][1]
+
+
+p31 = Point3f(3.0, 1.0, 9.0)
+p32 = Point3f(1.0, 4.0, 3.0)
+
+faceface = TriangleFace([1, 2, 1])
+faceface2 = TriangleFace([2, 1, 2]) # TriangleFace<:AbstractNgonFace<:AbstractFace<:StaticVectorだった
+
+meshmesh = Mesh([p31, p32], [faceface, faceface2])
+meshmesh[1]
+meshmesh[2]
+using Rotations
+
+QuatRotation(RotZ(π / 120) * QuatRotation(1, 0, 0, 0))
+
+answer = RotZ(π / 120) * QuatRotation(1, 0, 0, 0) |> QuatRotation
+
+a = QuatRotation(1, 0, 0, 0)
+
+a = a |> x -> RotZ(π / 120) * x |> QuatRotation
+
+# あるPoint3から別のPoint3fに
+
+include("UtlityFuncs.jl")
+
+pt = Point3f(1, 1, 0)
+pt2 = Point3f(1, 0, 1)
+
+pt * pt2
+
+norm(pt)
+
+rotation_angle(QuatRotation(1, 0, 0, 0))
+
+rotation_angle(RotZ(π / 120) * QuatRotation(1, 0, 0, 0))
