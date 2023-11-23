@@ -15,13 +15,11 @@ mutable struct MyGameObject
     attributes::Dict
     # some attributes(eg. reflection) will be calculated for each faces
     # KinecticProperty
-    # 	Velocity
-    # 	ArgVelocity
+    # 	Velocity::Point3f(automatic calc)
+    #	Size::Float32(0<1)
     # PassiveMaterialProperty
-    # 	Roughness
-    # 	ReflectionSpectrum
-    # ActiveMaterialProperty
-    # 	RadiationSpectrum
+    # 	ReflectionSpectrum::Vector{Float32}
+    #	Tranparency::Float32(0<1)
     collisionmesh_world::T where {T<:AbstractMesh}
     appearancemesh_world::T where {T<:AbstractMesh}
 end
@@ -36,4 +34,9 @@ function generate_globalizedmesh2D!(obj::T) where {T<:MyGameObject}
     appearvert = appearvert .|> x -> RotZ(decide_arg2D(obj.direction)) * x |> x -> x .+ obj.position |> Point3f
     obj.collisionmesh_world = Mesh(collisionvert, faces(obj.collisionmesh))
     obj.appearancemesh_world = Mesh(appearvert, faces(obj.appearancemesh))
+end
+
+function object_mover!(obj::T, Movement::Point3f, FPS::Float32) where {T<:MyGameObject}
+    obj.position += Movement
+    obj.attributes["Velocity"] = Movement .* FPS
 end

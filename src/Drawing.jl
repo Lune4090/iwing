@@ -8,12 +8,16 @@
 
 function draw_ViDARs_result(fig, AxisDict::Dict, AllObjDict::Dict, flags::Dict,
     player_position::Point3f, player_direction::Point3f,
-    Llim::Float64, Rlim::Float64, scanres::Int, ScanningGrid::Vector{NamedTuple}, search_direction::Point3f)
+    Llim::Float64, Rlim::Float64, scanres::Int, ScanningGrid::Vector{Vector}, search_direction::Point3f)
     # Visualize
 
     IsAnyNewAxCreated = false
     lim_main = 7.5
     lim_vidars = 50
+
+    detection_th = 0.1
+    detection_standard_length = 20
+    wavelength = 800
 
     # Draw Stage
     if !flags["IsStageVisualised"] # Generate new Ax as Stage only if StageAx is not created
@@ -63,16 +67,18 @@ function draw_ViDARs_result(fig, AxisDict::Dict, AllObjDict::Dict, flags::Dict,
         end
     end
 
-    rarr = Vector{Float64}(undef, scanres)
+    rarr = Vector{Float32}(undef, 0)
+    θarr = Vector{Float32}(undef, 0)
     Llim += decide_arg2D(search_direction)
     Rlim += decide_arg2D(search_direction)
-    θarr = LinRange(Rlim, Llim, scanres + 1)
-    θarr = θarr[1:scanres]
+    tmpθarr = LinRange(Rlim, Llim, scanres + 1)
+    tmpθarr = tmpθarr[1:scanres]
     for i in 1:scanres
-        if ScanningGrid[i].dist != Inf
-            rarr[i] = ScanningGrid[i].dist
-        else
-            rarr[i] = 0
+        for j in 1:length(ScanningGrid[i])
+            if ScanningGrid[i][j].dist != Inf
+                push!(rarr, ScanningGrid[i][j].dist)
+                push!(θarr, tmpθarr[i])
+            end
         end
     end
 

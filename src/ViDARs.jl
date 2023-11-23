@@ -14,17 +14,18 @@ function ViDARsLoop(
     #println("----------------------------------------------")
     #println("Start ViDARsLoop")
     # 描画情報を格納するScanningGridをθres個のDictを持ったVectorとして生成
-    ScanningGrid = Vector{NamedTuple}(undef, θres)
+    ScanningGrid = Vector{Vector}(undef, θres)
     dθ = (θLlim - θRlim) / θres
     # X軸正方向を基準に基準角を決定
     θstart = decide_arg2D(center_direction)
     # 反時計回りに走査を行う
     for step_θ in 1:θres
-        ScanningGrid[step_θ] = (dist=Inf, normv=nothing, num=nothing, objkey=nothing)
+        ScanningGrid[step_θ] = Vector{NamedTuple}(undef, length(AllObjDict))
         # https://risalc.info/src/line-plane-intersection-point.html
         ScanDir = Point3f(cos(step_θ * dθ + θstart + θRlim), sin(step_θ * dθ + θstart + θRlim), 0)
         for key in keys(AllObjDict)
             obj = AllObjDict[key]
+            tmp = (dist=Inf, normv=nothing, num=nothing, objkey=nothing, attr=nothing)
             # ここからポリゴン毎の処理
             for face_num in eachindex(faces(obj.collisionmesh))
                 polygon = obj.collisionmesh_world[face_num]
@@ -34,8 +35,10 @@ function ViDARsLoop(
                 n = Point3f(cos(θpoly + π / 2), sin(θpoly + π / 2), 0) # sign(π/2) doesn't matter cuz h also depends on it
                 h = transpose(n) * polygon[1]
                 t = Xpt_dist_calc(center, polygon, ScanDir, n, h)
-                ScanningGrid[step_θ].dist > t ? ScanningGrid[step_θ] = (dist=t, normv=n, num=face_num, objkey=key) : nothing
+                tmp.dist > t ? tmp = (dist=t, normv=n, num=face_num, objkey=key, attr=obj.attributes) : nothing
             end
+            @show tmp
+            ScanningGrid[step_θ][key] = tmp
         end
     end
     return ScanningGrid
@@ -54,5 +57,5 @@ function Xpt_dist_calc(center, polygon, ScanDir, n, h)
             end
         end
     end
-    return Float32(0)
+    return Float32(Inf)
 end

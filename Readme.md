@@ -6,10 +6,10 @@
 
 | 時間 | 作成予定 | 作成完了 | 現時点 |備考|
 |----|----|----|----|----|
-|10/11|開発環境整備|なし|||
-|11W1|ViDARs|ViDARs (11/11(Sat))|イマココ||
-|11W2|LoadingMesh/BasicMovement(WASD)||||
-|11W3|ObjectDetection/WINGS-Programming||||
+|10/11|開発環境整備|開発環境整備|||
+|11W1|ViDARs|ViDARsプロトタイプ|||
+|11W2|LoadingMesh/BasicMovement(WASD)|ViDARsバグ修正||GeometryBasics.jl, Rotations.jl導入|
+|11W3|ObjectDetection/WINGS-Programming|ViDARsを上記ライブラリに適合，パフォーマンス確認|イマココ||
 |11/12|Garage : ObjectLoad/UnloadSystem||||
 |12W1|Field : BasicSystem/UI||||
 |12W2|Stage : BasicSystem/UI||||

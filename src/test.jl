@@ -147,3 +147,19 @@ norm(pt)
 rotation_angle(QuatRotation(1, 0, 0, 0))
 
 rotation_angle(RotZ(π / 120) * QuatRotation(1, 0, 0, 0))
+
+using GLMakie
+
+fig = Figure()
+
+polax = PolarAxis(fig[1, 1])
+
+xs = 1:10
+
+ys = xs .|> x -> x .* [1, 2]
+
+xs = xs .|> x -> x .* [1, 1]
+
+plt = map(zip, xs, ys)
+
+scatter!(polax, [π / 3, π / 6, π / 6], [5, 1, 2])
