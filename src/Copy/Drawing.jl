@@ -7,19 +7,17 @@
 #= --- Functions --- =#
 
 function draw_ViDARs_result(fig, AxisDict::Dict, AllObjDict::Dict, flags::Dict,
-    player_position::Point3f, player_direction::Point3f,
-    Llim::Float64, Rlim::Float64, scanres::Int, ScanningGrid::Vector{NamedTuple}, search_direction::Point3f)
+    center::Point3f, center_PDVec::Point3f,
+    Llim::Float64, Rlim::Float64, scanres::Int, ScanningGrid::Vector{NamedTuple})
     # Visualize
 
     IsAnyNewAxCreated = false
-    lim_main = 7.5
-    lim_vidars = 50
 
     # Draw Stage
     if !flags["IsStageVisualised"] # Generate new Ax as Stage only if StageAx is not created
         AxisDict["StageAx"] = Axis(fig[1, 1], aspect=1)
-        xlims!(AxisDict["StageAx"], -lim_main, lim_main)
-        ylims!(AxisDict["StageAx"], -lim_main, lim_main)
+        xlims!(AxisDict["StageAx"], -10, 10)
+        ylims!(AxisDict["StageAx"], -10, 10)
         flags["IsStageVisualised"] = true
         IsAnyNewAxCreated = true
     else # Delete plots to initialize axis
@@ -33,27 +31,19 @@ function draw_ViDARs_result(fig, AxisDict::Dict, AllObjDict::Dict, flags::Dict,
     end
 
     # Draw sight bar
-    leftlimitsline = RotZ(Llim) * search_direction
-    rightlimitsline = RotZ(Rlim) * search_direction
+    leftlimitsline = RotZ(Llim) * center_PDVec
+    rightlimitsline = RotZ(-Rlim) * center_PDVec
 
     lines!(AxisDict["StageAx"],
-        [player_position[1] + rightlimitsline[1], player_position[1], player_position[1] + leftlimitsline[1]],
-        [player_position[2] + rightlimitsline[2], player_position[2], player_position[2] + leftlimitsline[2]],
-        [player_position[3] + rightlimitsline[3], player_position[3], player_position[3] + leftlimitsline[3]],
+        [center[1] + rightlimitsline[1], center[1], center[1] + leftlimitsline[1]],
+        [center[2] + rightlimitsline[2], center[2], center[2] + leftlimitsline[2]],
+        [center[3] + rightlimitsline[3], center[3], center[3] + leftlimitsline[3]],
         color=:lightgreen)
-
-    lines!(AxisDict["StageAx"],
-        [player_position[1], player_position[1] + player_direction[1]],
-        [player_position[2], player_position[2] + player_direction[2]],
-        [player_position[3], player_position[3] + player_direction[3]],
-        color=:orange)
-
-    lines!
 
     # Draw ViDARs result
     # initial setting
     if !flags["IsViDARsVisualised"] # Generate new Ax as ViDARs only if ViDARsAx is not created
-        AxisDict["ViDARsAxDict"] = Dict("ViDARsAx" => PolarAxis(fig[1, 2], rlimits=(0, lim_vidars)), "ViDARsResult" => [])
+        AxisDict["ViDARsAxDict"] = Dict("ViDARsAx" => PolarAxis(fig[1, 2], rlimits=(0, 10), thetalimits=(-Llim, Rlim)), "ViDARsResult" => [])
         flags["IsViDARsVisualised"] = true
         IsAnyNewAxCreated = true
     else # Delete plots to initialize axis
@@ -64,10 +54,7 @@ function draw_ViDARs_result(fig, AxisDict::Dict, AllObjDict::Dict, flags::Dict,
     end
 
     rarr = Vector{Float64}(undef, scanres)
-    Llim += decide_arg2D(search_direction)
-    Rlim += decide_arg2D(search_direction)
-    θarr = LinRange(Rlim, Llim, scanres + 1)
-    θarr = θarr[1:scanres]
+    θarr = -Rlim:(Llim+Rlim)/(scanres-1):Llim
     for i in 1:scanres
         if ScanningGrid[i].dist != Inf
             rarr[i] = ScanningGrid[i].dist
@@ -79,7 +66,7 @@ function draw_ViDARs_result(fig, AxisDict::Dict, AllObjDict::Dict, flags::Dict,
     push!(
         AxisDict["ViDARsAxDict"]["ViDARsResult"],
         scatter!(AxisDict["ViDARsAxDict"]["ViDARsAx"], θarr, rarr,
-            color=:blue, markersize=10)
+            color=:lightblue, markersize=5)
     )
 
 end

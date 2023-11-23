@@ -15,14 +15,14 @@ function ViDARsLoop(
     #println("Start ViDARsLoop")
     # 描画情報を格納するScanningGridをθres個のDictを持ったVectorとして生成
     ScanningGrid = Vector{NamedTuple}(undef, θres)
-    dθ = (θRlim + θLlim) / θres
+    dθ = (θLlim - θRlim) / θres
     # X軸正方向を基準に基準角を決定
     θstart = decide_arg2D(center_direction)
     # 反時計回りに走査を行う
     for step_θ in 1:θres
         ScanningGrid[step_θ] = (dist=Inf, normv=nothing, num=nothing, objkey=nothing)
         # https://risalc.info/src/line-plane-intersection-point.html
-        ScanDir = Point3f(cos(step_θ * dθ + θstart - θRlim), sin(step_θ * dθ + θstart - θRlim), 0)
+        ScanDir = Point3f(cos(step_θ * dθ + θstart + θRlim), sin(step_θ * dθ + θstart + θRlim), 0)
         for key in keys(AllObjDict)
             obj = AllObjDict[key]
             # ここからポリゴン毎の処理
