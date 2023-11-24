@@ -7,8 +7,9 @@
 #= --- Functions --- =#
 
 function draw_ViDARs_result(fig, AxisDict::Dict, AllObjDict::Dict, flags::Dict,
-    player_position::Point3f, player_direction::Point3f,
-    Llim::Float64, Rlim::Float64, scanres::Int, ScanningGrid::Vector{Vector}, search_direction::Point3f)
+    player_position::Point3f, player_direction::QuatRotation,
+    Llim::Float64, Rlim::Float64, scanres::Int,
+    ScanningGrid::Vector{Vector}, search_direction::QuatRotation)
     # Visualize
 
     IsAnyNewAxCreated = false
@@ -47,9 +48,9 @@ function draw_ViDARs_result(fig, AxisDict::Dict, AllObjDict::Dict, flags::Dict,
         color=:lightgreen)
 
     lines!(AxisDict["StageAx"],
-        [player_position[1], player_position[1] + player_direction[1]],
-        [player_position[2], player_position[2] + player_direction[2]],
-        [player_position[3], player_position[3] + player_direction[3]],
+        [player_position[1], player_position[1] + cos(rotation_angle(player_direction))],
+        [player_position[2], player_position[2] + sin(rotation_angle(player_direction))],
+        [player_position[3], player_position[3]],
         color=:orange)
 
     lines!
@@ -69,8 +70,8 @@ function draw_ViDARs_result(fig, AxisDict::Dict, AllObjDict::Dict, flags::Dict,
 
     rarr = Vector{Float32}(undef, 0)
     θarr = Vector{Float32}(undef, 0)
-    Llim += decide_arg2D(search_direction)
-    Rlim += decide_arg2D(search_direction)
+    Llim += rotation_angle(search_direction)
+    Rlim += rotation_angle(search_direction)
     tmpθarr = LinRange(Rlim, Llim, scanres + 1)
     tmpθarr = tmpθarr[1:scanres]
     for i in 1:scanres

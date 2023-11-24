@@ -6,7 +6,7 @@
 
 mutable struct MyGameObject
     position::Point3f
-    direction::Point3f
+    direction::QuatRotation
     # n, θ is against QuatRotation(1,0,0,0)
     # Cuz this game is look-down shooter, so always n = (0,0,1)
     collisionmesh::T where {T<:AbstractMesh}
@@ -30,8 +30,8 @@ function generate_globalizedmesh2D!(obj::T) where {T<:MyGameObject}
     # ParallelTranslation
     collisionvert = obj.collisionmesh |> coordinates
     appearvert = obj.appearancemesh |> coordinates
-    collisionvert = collisionvert .|> x -> RotZ(decide_arg2D(obj.direction)) * x |> x -> x .+ obj.position |> Point3f
-    appearvert = appearvert .|> x -> RotZ(decide_arg2D(obj.direction)) * x |> x -> x .+ obj.position |> Point3f
+    collisionvert = collisionvert .|> x -> obj.direction * x |> x -> x .+ obj.position |> Point3f
+    appearvert = appearvert .|> x -> obj.direction * x |> x -> x .+ obj.position |> Point3f
     obj.collisionmesh_world = Mesh(collisionvert, faces(obj.collisionmesh))
     obj.appearancemesh_world = Mesh(appearvert, faces(obj.appearancemesh))
 end

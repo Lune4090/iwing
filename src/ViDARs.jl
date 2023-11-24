@@ -8,7 +8,7 @@
 
 function ViDARsLoop(
     AllObjDict::Dict,
-    center::Point3f, center_direction::Point3f,
+    center::Point3f, center_direction::QuatRotation,
     θRlim, θLlim, θres)
 
     #println("----------------------------------------------")
@@ -17,7 +17,7 @@ function ViDARsLoop(
     ScanningGrid = Vector{Vector}(undef, θres)
     dθ = (θLlim - θRlim) / θres
     # X軸正方向を基準に基準角を決定
-    θstart = decide_arg2D(center_direction)
+    θstart = rotation_angle(center_direction)
     # 反時計回りに走査を行う
     for step_θ in 1:θres
         ScanningGrid[step_θ] = Vector{NamedTuple}(undef, length(AllObjDict))

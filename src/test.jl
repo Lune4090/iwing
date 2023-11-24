@@ -163,3 +163,7 @@ xs = xs .|> x -> x .* [1, 1]
 plt = map(zip, xs, ys)
 
 scatter!(polax, [π / 3, π / 6, π / 6], [5, 1, 2])
+
+using GLMakie, Rotations
+
+QuatRotation(RotZ(0))

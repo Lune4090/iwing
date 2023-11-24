@@ -39,7 +39,8 @@ end
 
 # Call function which should be done in a frame
 function EachFrame(fig, AxisDict::Dict, AllObjDict::Dict, flags::Dict,
-    player_position::Point3f, player_direction::Point3f, search_direction::Point3f, chase_direction::Point3f)
+    player_position::Point3f, player_direction::QuatRotation,
+    search_direction::QuatRotation, chase_direction::QuatRotation)
     #println("----------------------------------------------")
     #println("EachFrameExecution Started")
 
@@ -55,7 +56,7 @@ function EachFrame(fig, AxisDict::Dict, AllObjDict::Dict, flags::Dict,
     Llim = π / 36
     Rlim = -π / 36
     scanres = 5
-    search_direction = RotZ((Llim - Rlim) / 2) * search_direction |> Point3f
+    search_direction = RotZ((Llim - Rlim) / 2) * search_direction |> QuatRotation
 
     # detect globalized(collision)mesh
     @time ScanningGrid_search = ViDARsLoop(
@@ -72,7 +73,8 @@ end
 
 # Main Game loop
 function GameLoop(fig, AxisDict::Dict, AllObjDict::Dict, flags::Dict,
-    player_position::Point3f, player_direction::Point3f, search_direction::Point3f, chase_direction::Point3f)
+    player_position::Point3f, player_direction::QuatRotation,
+    search_direction::QuatRotation, chase_direction::QuatRotation)
     #println("----------------------------------------------")
     #println("GameLoop Started")
     search_direction = EachFrame(fig, AxisDict, AllObjDict, flags, player_position, player_direction, search_direction, chase_direction)
@@ -104,7 +106,7 @@ function GameMain()
 
     Mygameobj = MyGameObject(
         Point3f(20.0, 0.0, 0.0),
-        Point3f(1.0, 0.0, 0.0),
+        QuatRotation(RotZ(0)),
         Mesh(tmpvertices2D, tmpfaces2D),
         Mesh(tmpvertices2D, tmpfaces2D),
         Dict(),
@@ -116,14 +118,14 @@ function GameMain()
 
     # PlayerCharacter position (最終的にはObjとして引き渡す)
     player_pos = Point3f(0.0)
-    player_direction = Point3f(0.0, 1.0, 0.0)
-    search_direction = Point3f(0.0, 1.0, 0.0)
-    chase_direction = Point3f(0.0, 1.0, 0.0)
+    player_direction = QuatRotation(RotZ(0))
+    search_direction = QuatRotation(RotZ(0))
+    chase_direction = QuatRotation(RotZ(0))
 
     # plotting object initialization
 
     while to_value(events(fig).window_open)
-        player_direction = player_direction |> x -> RotZ(π / 180) * x |> Point3f
+        player_direction = player_direction |> x -> RotZ(π / 180) * x |> QuatRotation
         println("------------")
         search_direction = GameLoop(fig, AxisDict, AllObjDict, flags, player_pos, player_direction, search_direction, chase_direction)
     end
