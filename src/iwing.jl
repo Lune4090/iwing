@@ -1,6 +1,7 @@
 clear() = run(`cmd /c cls`)
 
 using GLMakie
+using LinearAlgebra
 using GeometryBasics
 using GeometryBasics: Mesh
 using Rotations
@@ -9,6 +10,7 @@ include("Drawing.jl")
 include("GameObject.jl")
 include("UtlityFuncs.jl")
 include("ViDARs.jl")
+include("PseudoPhysics.jl")
 
 #= --- Comments--- =#
 # In general, original structs or functions are minimal for easy maintanance
@@ -44,29 +46,37 @@ function EachFrame(fig, AxisDict::Dict, AllObjDict::Dict, flags::Dict,
     #println("----------------------------------------------")
     #println("EachFrameExecution Started")
 
-    # Polygon projection
+    # Update all object
     for key in keys(AllObjDict)
         obj = AllObjDict[key]
         #println("----------------------------------------------")
         #println("Start processing object : $key")
-        generate_globalizedmesh2D!(obj)
+        object_mover!(obj, Point3f(0, 0.05, 0), 60.0f0)
+        update_globalizedmesh2D!(obj)
     end
 
-    # put them into flags
-    Llim = π / 36
-    Rlim = -π / 36
+    Llim = π / 36.0f0
+    Rlim = π / -36.0f0
     scanres = 5
     search_direction = RotZ((Llim - Rlim) / 2) * search_direction |> QuatRotation
 
-    # detect globalized(collision)mesh
+    # Detect globalized(collision)mesh
     @time ScanningGrid_search = ViDARsLoop(
         AllObjDict, player_position, search_direction,
         Rlim, Llim, scanres)
 
+    # Calculate detected things property
+    @time AnalyzedGrid_search = propertycalc(
+        ScanningGrid_search; wavetype="IR")
+
     # Draw display
-    @time draw_ViDARs_result(fig, AxisDict, AllObjDict, flags,
-        player_position, player_direction,
-        Llim, Rlim, scanres, ScanningGrid_search, search_direction)
+    @time draw_main(fig, AxisDict, AllObjDict, flags,
+        player_position, player_direction, 10.0f0,
+        Llim, Rlim, search_direction)
+
+    @time draw_ViDARs_result(fig, AxisDict, flags,
+        Llim, Rlim, scanres, 50.0f0,
+        AnalyzedGrid_search, search_direction)
 
     return search_direction
 end
@@ -95,26 +105,21 @@ function GameMain()
     p2 = Point3f(2.0, 2.0, 0.0)
     tmpvertices2D = [p1, p2]
     tmpfaces2D = [TriangleFace([1, 2, 1]), TriangleFace([2, 1, 2])]
-    for i in 1:998
-        if i % 2 == 0
-            push!(tmpfaces2D, TriangleFace([1, 2, 1]))
-        else
-            push!(tmpfaces2D, TriangleFace([2, 1, 2]))
-        end
-    end
-    @show length(tmpfaces2D)
-
-    Mygameobj = MyGameObject(
-        Point3f(20.0, 0.0, 0.0),
-        QuatRotation(RotZ(0)),
-        Mesh(tmpvertices2D, tmpfaces2D),
-        Mesh(tmpvertices2D, tmpfaces2D),
-        Dict(),
-        Mesh(tmpvertices2D, tmpfaces2D),
-        Mesh(tmpvertices2D, tmpfaces2D))
 
     # 辞書に登録
-    AllObjDict[1] = Mygameobj
+    tmpdict = Dict("Normal" => 1.0f0, "IR" => 1.0f0)
+    for i in 1:10
+        AllObjDict[i] = MyGameObject(
+            Point3f(2.0, 0.0, 0.0),
+            QuatRotation(RotZ(0)),
+            Mesh(tmpvertices2D, tmpfaces2D),
+            Mesh(tmpvertices2D, tmpfaces2D),
+            Dict("size" => 1.0f0, "reflectionspectrum" => tmpdict, "transparency" => 1.0f0),
+            Mesh(tmpvertices2D, tmpfaces2D),
+            Mesh(tmpvertices2D, tmpfaces2D))
+    end
+
+    @show length(AllObjDict)
 
     # PlayerCharacter position (最終的にはObjとして引き渡す)
     player_pos = Point3f(0.0)
@@ -135,7 +140,7 @@ GameMain()
 
 #=
 現時点でのViDARSについての結論
-・@threadsは効果なし(むしろ1/2位に落ち込んだ)
+・@threadsは効果なし(むしろ1/2位に落ち込んだ)→いやこれは立ち上げ時にスレッド数指定してないからか
 ・内部の計算が結構複雑だからGPUのレンダリングパイプラインを上手く使わない限り高速化はほぼ不可能
 ・取り敢えずCPUでいく
 ・目安として，キャラクター当たり判定のエッジの基準長を1[m]とした時，θres=30で走査角π/6(: dθ= 2°)だと50m先のオブジェクトがガタガタして映る感じ

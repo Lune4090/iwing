@@ -26,7 +26,7 @@ end
 
 #= --- Functions --- =#
 
-function generate_globalizedmesh2D!(obj::T) where {T<:MyGameObject}
+function update_globalizedmesh2D!(obj::T) where {T<:MyGameObject}
     # ParallelTranslation
     collisionvert = obj.collisionmesh |> coordinates
     appearvert = obj.appearancemesh |> coordinates
@@ -38,5 +38,5 @@ end
 
 function object_mover!(obj::T, Movement::Point3f, FPS::Float32) where {T<:MyGameObject}
     obj.position += Movement
-    obj.attributes["Velocity"] = Movement .* FPS
+    obj.attributes["velocity"] = Movement .* FPS
 end

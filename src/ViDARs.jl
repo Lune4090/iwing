@@ -11,8 +11,6 @@ function ViDARsLoop(
     center::Point3f, center_direction::QuatRotation,
     θRlim, θLlim, θres)
 
-    #println("----------------------------------------------")
-    #println("Start ViDARsLoop")
     # 描画情報を格納するScanningGridをθres個のDictを持ったVectorとして生成
     ScanningGrid = Vector{Vector}(undef, θres)
     dθ = (θLlim - θRlim) / θres
@@ -25,29 +23,36 @@ function ViDARsLoop(
         ScanDir = Point3f(cos(step_θ * dθ + θstart + θRlim), sin(step_θ * dθ + θstart + θRlim), 0)
         for key in keys(AllObjDict)
             obj = AllObjDict[key]
-            tmp = (dist=Inf, normv=nothing, num=nothing, objkey=nothing, attr=nothing)
+            tmp = (dist=Inf, normv=nothing, scandir=nothing, num=nothing, objkey=nothing, attr=nothing)
             # ここからポリゴン毎の処理
             for face_num in eachindex(faces(obj.collisionmesh))
                 polygon = obj.collisionmesh_world[face_num]
                 V_v1_v2 = polygon[2] - polygon[1]
                 # PlainEq: n ⋅ x = h (n: Normal vector)
                 θpoly = decide_arg2D(V_v1_v2)
-                n = Point3f(cos(θpoly + π / 2), sin(θpoly + π / 2), 0) # sign(π/2) doesn't matter cuz h also depends on it
-                h = transpose(n) * polygon[1]
-                t = Xpt_dist_calc(center, polygon, ScanDir, n, h)
-                tmp.dist > t ? tmp = (dist=t, normv=n, num=face_num, objkey=key, attr=obj.attributes) : nothing
+                normvec = Point3f(cos(θpoly + π / 2), sin(θpoly + π / 2), 0) # sign(π/2) doesn't matter cuz h also depends on it
+                dist_center_plain = normvec ⋅ polygon[1]
+                dist = Xpt_dist_calc(center, polygon, ScanDir, normvec, dist_center_plain)
+                if tmp.dist > dist
+                    tmp = (dist=dist, normv=normvec, scandir=ScanDir, num=face_num, objkey=key, attr=obj.attributes)
+                end
             end
-            @show tmp
-            ScanningGrid[step_θ][key] = tmp
+            ScanningGrid[step_θ][key] = tmp #ここ，keyがIntで保持されてるからエラーを吐いてない
         end
     end
     return ScanningGrid
 end
 
+
+"""
+Plain Eq
+center + t*ScanDir = Xpt
+t = (h - n⋅center)/n⋅ScanDir
+"""
 function Xpt_dist_calc(center, polygon, ScanDir, n, h)
-    dp = transpose(n) * ScanDir
+    dp = n ⋅ ScanDir
     if dp != 0 # check scandir is parallel to plane or not
-        t = (h - transpose(n) * center) / dp # Xpt = center + t*ScanDir
+        t = (h - n ⋅ center) / dp # Xpt = center + t*ScanDir
         if t >= 0 # check plane is directed on scandir
             Xpt = center + ScanDir * t
             V_v1_Xpt = (Xpt - polygon[1])
