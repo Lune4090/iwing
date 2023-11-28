@@ -1,3 +1,12 @@
+#= --- Comments--- =#
+# In general, original structs or functions are minimal for easy maintanance
+# Original structs are designed to be compatible with Makie & GeometryBasics
+# This file mainly aims to pseudo physics calculation
+
+#= --- Structs --- =#
+
+#= --- Functions --- =#
+
 function propertycalc(
     ScanningGrid::T;
     wavetype::String="Normal", detect_lim::Float32=0.1f0, standard_len::Float32=20.0f0,
@@ -60,6 +69,7 @@ function reflectioncalc(player_velocity::Point3f,
     return analyzed_res
 end
 
+# まだ出来てない
 function dopplercalc(player_velocity, obj_velocity)
     relative_velocity = player_velocity - obj_velocity
     velX = abs(relative_velocity[1])

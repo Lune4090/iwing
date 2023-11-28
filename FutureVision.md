@@ -21,3 +21,4 @@ ViDARsはGeometryBasics.jl，Rotations.jlを前提とした仕様で基本的な
 1. スクリプトシステム
 2. キーボード入力の受付(Observable化)
 3. ゲーム内容，ストーリー煮詰める
+4. いい加減ユニットテストを自動化する

@@ -2,6 +2,8 @@
 # In general, original structs or functions are minimal for easy maintanance
 # Original structs are designed to be compatible with Makie & GeometryBasics
 
+# まだpushしまくってることに注意，mainの描画は一括の方が速いはず
+
 #= --- Structs --- =#
 
 #= --- Functions --- =#
