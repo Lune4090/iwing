@@ -24,25 +24,37 @@ include("PseudoPhysics.jl")
 
 # InitialSetting to start game
 # Define variable and get some outside data
-function InitialSetting()
-    # defince new variable
+function InitialSetting(savedata::NamedTuple)
+    # Generate Window
     fig = Figure()
     AxisDict = Dict{String,Any}()
     display(fig)
+
+    # Object initialize
     AllObjDict = Dict{Int,MyGameObject}()
+
+    # Flag initialize
     flags = Dict{String,Any}()
-    # variables initial setting
     flags["IsFieldVisualised"] = false
     flags["IsStageVisualised"] = false
     flags["IsViDARsVisualised"] = false
 
-    return fig, AxisDict, AllObjDict, flags
+    # Set variable based on saved data
+    AllObjDict = savedata.AllObjDict
+    player_pos = savedata.player_pos
+    player_direction = savedata.player_direction
+    search_direction = savedata.search_direction
+    chase_direction = savedata.chase_direction
+
+    return fig, AxisDict,
+    AllObjDict, flags,
+    player_pos, player_direction,
+    search_direction, chase_direction
 end
 
 # Call function which should be done in a frame
 function EachFrame(fig, AxisDict::Dict, AllObjDict::Dict, flags::Dict,
-    player_position::Point3f, player_direction::QuatRotation,
-    search_direction::QuatRotation, chase_direction::QuatRotation)
+    player_inputs)
     #println("----------------------------------------------")
     #println("EachFrameExecution Started")
 
@@ -54,11 +66,6 @@ function EachFrame(fig, AxisDict::Dict, AllObjDict::Dict, flags::Dict,
         object_mover!(obj, Point3f(0, 0.05, 0), 60.0f0)
         update_globalizedmesh2D!(obj)
     end
-
-    Llim = π / 36.0f0
-    Rlim = π / -36.0f0
-    scanres = 5
-    search_direction = RotZ((Llim - Rlim) / 2) * search_direction |> QuatRotation
 
     # Detect globalized(collision)mesh
     @time ScanningGrid_search = ViDARsLoop(
@@ -81,62 +88,47 @@ function EachFrame(fig, AxisDict::Dict, AllObjDict::Dict, flags::Dict,
     return search_direction
 end
 
-# Main Game loop
+
+#=-------- Main Game loop ---------=#
 function GameLoop(fig, AxisDict::Dict, AllObjDict::Dict, flags::Dict,
     player_position::Point3f, player_direction::QuatRotation,
     search_direction::QuatRotation, chase_direction::QuatRotation)
-    #println("----------------------------------------------")
-    #println("GameLoop Started")
-    search_direction = EachFrame(fig, AxisDict, AllObjDict, flags, player_position, player_direction, search_direction, chase_direction)
+
+    Llim = π / 36.0f0
+    Rlim = π / -36.0f0
+    scanres = 5
+    search_direction = RotZ((Llim - Rlim) / 2) * search_direction |> QuatRotation
+
+    player_inputs = EachFrame(fig, AxisDict, AllObjDict, flags, player_inputs)
+
     return search_direction
 end
+
+
+#=------- End Game Execution --------=#
+function EndGame()
+    "Game end"
+end
+
+#=-------- GameMain --------=#
+
+function GameMain(savedata::NamedTuple)
+    args... = InitialSetting(savedata)
+
+    #=-------- Begin GameLoop --------=#
+    while to_value(events(fig).window_open)
+        GameLoop(args...)
+    end
+
+    #=-------- End Game execution--------=#
+    EndGame()
+end
+
+#GameMain()
 
 #= --- Comment Zone ---=#
 
 #= --- TestCodes --- =#
-
-GLMakie.activate!(framerate=120, render_on_demand=false)
-
-function GameMain()
-    fig, AxisDict, AllObjDict, flags = InitialSetting()
-    # 全てのオブジェクトは作られたのちにこのDictに追記されることで初めて名前と存在をゲームから認められる
-
-    p1 = Point3f(1.0, 0.0, 0.0)
-    p2 = Point3f(2.0, 2.0, 0.0)
-    tmpvertices2D = [p1, p2]
-    tmpfaces2D = [TriangleFace([1, 2, 1]), TriangleFace([2, 1, 2])]
-
-    # 辞書に登録
-    tmpdict = Dict("Normal" => 1.0f0, "IR" => 1.0f0)
-    for i in 1:10
-        AllObjDict[i] = MyGameObject(
-            Point3f(2.0, 0.0, 0.0),
-            QuatRotation(RotZ(0)),
-            Mesh(tmpvertices2D, tmpfaces2D),
-            Mesh(tmpvertices2D, tmpfaces2D),
-            Dict("size" => 1.0f0, "reflectionspectrum" => tmpdict, "transparency" => 1.0f0),
-            Mesh(tmpvertices2D, tmpfaces2D),
-            Mesh(tmpvertices2D, tmpfaces2D))
-    end
-
-    @show length(AllObjDict)
-
-    # PlayerCharacter position (最終的にはObjとして引き渡す)
-    player_pos = Point3f(0.0)
-    player_direction = QuatRotation(RotZ(0))
-    search_direction = QuatRotation(RotZ(0))
-    chase_direction = QuatRotation(RotZ(0))
-
-    # plotting object initialization
-
-    while to_value(events(fig).window_open)
-        player_direction = player_direction |> x -> RotZ(π / 180) * x |> QuatRotation
-        println("------------")
-        search_direction = GameLoop(fig, AxisDict, AllObjDict, flags, player_pos, player_direction, search_direction, chase_direction)
-    end
-end
-
-GameMain()
 
 #=
 現時点でのViDARSについての結論

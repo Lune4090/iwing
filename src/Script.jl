@@ -14,8 +14,10 @@
 4. Mesh(MyGameObjectではない)として表示する
 5. MyGameObjectとして表示する
 ...etc
-これらを同一の関数で，引数を変えるだけで異なる型のオブジェクトを生成することがこのファイルの目的
-生成された型は，Drawerの各関数に引き渡れた後多重ディスパッチで適当な関数を叩かれる
+
+パラメトリック型最強！
+
+テキストはいろんな場所で使うから，どの様な実装にするか考えるので少し待機
 
 =#
 
@@ -26,9 +28,9 @@ using FileIO
 
 abstract type AbstractMetaText end
 
-struct MetaTextasText <: AbstractMetaText
+struct MetaText{ColorType} <: AbstractMetaText
     Text::String
-    Color::Union{Symbol,Float32}
+    Color::ColorType
 end
 
 #= --- Functions --- =#
@@ -51,3 +53,28 @@ m = mesh!(
 Colorbar(gc[1, 2], m, label="BOLD level")
 
 @show color = [tri[1][2] for tri in brain for i in 1:3]
+
+
+struct Point{T}
+    x::T
+    y::T
+end
+
+a = Point(1.0, 2.0)
+
+b = Point(1, 2)
+
+b isa Point{<:Real}
+
+function plusminus(x::Point{Float64})
+    return x.x + x.y
+end
+
+function plusminus(x::Point{Int64})
+    return x.x - x.y
+end
+
+clear() = run(`cmd /c cls`)
+
+plusminus(a)
+plusminus(b)
